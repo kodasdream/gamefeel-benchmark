@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Gamefeel Benchmark</title>
+<meta name="description" content="A creativity benchmark for AI models on game development: each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel and creativity." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">The Gamefeel Benchmark<small>AI models on real dev tasks</small></div>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="meta" id="meta"></div>
+  </header>
+  <aside class="side">
+    <div class="side-head"><b>Models</b><span id="shown"></span></div>
+    <div class="side-tools">
+      <input id="q" type="search" placeholder="filter by name or lab" />
+      <button id="showAll" type="button">all</button>
+      <button id="hideAll" type="button">none</button>
+    </div>
+    <div class="model-list" id="modelList"></div>
+    <div class="side-foot">Tick a model to show or hide it in every chart. Hover a model to spotlight it.</div>
+  </aside>
+  <main class="main">
+    <div class="controls" id="controls"></div>
+    <div class="stage" id="stage"><div class="fig"><p class="notice">Loading the data…</p></div></div>
+  </main>
+</div>
+<div class="tip" id="tip"></div>
+<div id="exportStage"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

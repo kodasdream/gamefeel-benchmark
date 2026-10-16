@@ -1,0 +1,14 @@
+<svg viewBox="0 0 24 24" role="img" xmlns="http://www.w3.org/2000/svg">
+  <g fill="currentColor">
+    <ellipse cx="9.1" cy="6.4" rx="2.05" ry="5.4" transform="rotate(-9 9.1 6.4)"/>
+    <ellipse cx="14.9" cy="6.4" rx="2.05" ry="5.4" transform="rotate(9 14.9 6.4)"/>
+    <circle cx="12" cy="15.2" r="6.1"/>
+  </g>
+  <g fill="#ffffff">
+    <ellipse cx="9.4" cy="6.2" rx="0.85" ry="3.3" transform="rotate(-9 9.4 6.2)"/>
+    <ellipse cx="14.6" cy="6.2" rx="0.85" ry="3.3" transform="rotate(9 14.6 6.2)"/>
+    <circle cx="9.8" cy="14.4" r="1.05"/>
+    <circle cx="14.2" cy="14.4" r="1.05"/>
+    <path d="M12 16.2 l0.85 1.05 h-1.7 z"/>
+  </g>
+</svg>

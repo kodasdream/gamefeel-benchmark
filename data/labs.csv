@@ -1,0 +1,12 @@
+lab_key,lab,colour,icon
+anthropic,Anthropic,#D97757,anthropic
+openai,OpenAI,#10A37F,openai
+google,Google DeepMind,#4285F4,google
+alibaba,Alibaba Qwen,#615CED,qwen
+deepseek,DeepSeek,#4D6BFE,deepseek
+minimax,MiniMax,#E73562,minimax
+xiaomi,Xiaomi,#FF6900,xiaomi
+meta,Meta AI,#0866FF,meta
+zhipu,Zhipu AI,#3859FF,zhipu
+opencode,OpenCode,#FF5FA2,bunny
+unknown,Unknown lab,#5A6478,unknown

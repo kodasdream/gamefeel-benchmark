@@ -1,0 +1,642 @@
+/* ============================================================
+   DATA: read at start-up from data/ and lab-icons/. build-benchmark.py writes these files from
+   gamefeelbench.xlsx on Google Drive. Edit the spreadsheet, not the files.
+   ============================================================ */
+let DATA = [];
+let ICONS = {};
+let META = {};
+
+async function fetchText(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} returned ${res.status}`);
+  return res.text();
+}
+/* Minimal CSV reader: commas, quoted fields, doubled quotes, and line breaks inside quotes. */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c !== '"') field += c;
+      else if (text[i + 1] === '"') { field += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  const [head, ...body] = rows.filter((r) => r.some((v) => v !== ''));
+  return body.map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? '').trim()])));
+}
+/* A lab icon as the charts need it: its viewBox and inner markup, recoloured to currentColor. */
+function parseIcon(svgText) {
+  const svg = new DOMParser().parseFromString(svgText, 'image/svg+xml').documentElement;
+  const inner = svg.innerHTML
+    .replace(/<title>[\s\S]*?<\/title>/g, '')
+    .replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"');
+  return { vb: svg.getAttribute('viewBox') || '0 0 24 24', inner: inner.trim() };
+}
+async function loadData() {
+  const [csv, labsCsv, meta] = await Promise.all([
+    fetchText('data/gamefeelbench.csv'), fetchText('data/labs.csv'), fetchText('data/meta.json'),
+  ]);
+  const labs = Object.fromEntries(parseCSV(labsCsv).map((l) => [l.lab_key, l]));
+  const slugs = [...new Set([...Object.values(labs).map((l) => l.icon), 'unknown'])];
+  const icons = Object.fromEntries(await Promise.all(
+    slugs.map(async (s) => [s, parseIcon(await fetchText(`lab-icons/${s}.svg`))]),
+  ));
+  const num = (v) => (v === '' ? null : Number(v));
+  const rows = parseCSV(csv).map((r) => {
+    const lab = labs[r.lab_key] || labs.unknown;
+    return {
+      id: `${r.model} · ${r.effort}`, model: r.model, effort: r.effort,
+      lab: lab.lab, tint: lab.colour, icon: lab.icon,
+      price: Number(r.price_per_task_usd || 0), basis: r.billing, context: r.context,
+      timeMin: Number(r.minutes_per_task || 0), compress: Number(r.context_compression_per_task || 0),
+      tps: Number(r.tokens_per_second || 0),
+      ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k])])),
+    };
+  });
+  return { rows, icons, meta: JSON.parse(meta) };
+}
+
+/* ---------- constants ---------- */
+const SCORE_KEYS = ['create', 'bugfix', 'gamefeel', 'ideas', 'visuals', 'audio'];
+const SCOPES = [
+  ['overall', 'Overall'], ['create', 'Coding · create'], ['bugfix', 'Coding · bugfix'], ['gamefeel', 'Gamefeel'],
+  ['ideas', 'Creativity · ideas'], ['visuals', 'Creativity · visuals'], ['audio', 'Creativity · audio'],
+];
+const SCOPE_LABEL = Object.fromEntries(SCOPES);
+const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
+const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
+const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
+const W = 1600;                    // figure width (ledger uses WL)
+const WL = 2400;
+const WP = 3400;                 // price-to-performance canvas: 2:1 (18:9), wider than the rest for room
+const TOP = 280;                   // first content line, below the title block
+const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb' };
+const NONE = new Set();
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+/* ---------- derived fields (run once the data has loaded) ---------- */
+function deriveFields() {
+  DATA.forEach((d) => {
+    d.complete = SCORE_KEYS.every((k) => d[k] != null);
+    const have = SCORE_KEYS.map((k) => d[k]).filter((v) => v != null);
+    d.avg = have.length ? Math.round((have.reduce((a, b) => a + b, 0) / have.length) * 10) / 10 : null;
+    d.free = !(d.price > 0);
+    d.px = Math.max(d.price, PRICE_FLOOR);
+    d.value = d.avg != null && !d.free ? Math.round((d.avg / d.price) * 10) / 10 : null;
+  });
+}
+// Overall only ranks models with all six scores. Subcategories rank any model with that score.
+const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null) : (d[scope] ?? null));
+const priceText = (d) => (d.free ? 'free' : `$${d.price.toFixed(2)}/task · ${BASIS_WORD[d.basis] || d.basis}`);
+const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
+const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
+
+/* ---------- drawing helpers ---------- */
+function iconSvg(d, x, y, size) {
+  const ic = ICONS[d.icon] || ICONS.unknown;
+  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="${ic.vb}" color="${d.tint}" fill="currentColor">${ic.inner}</svg>`;
+}
+function iconHTML(d) {
+  const ic = ICONS[d.icon] || ICONS.unknown;
+  return `<span class="mico" style="color:${d.tint}"><svg viewBox="${ic.vb}" fill="currentColor" aria-hidden="true">${ic.inner}</svg></span>`;
+}
+function frame(w, h, title, lines) {
+  let s = `<rect width="${w}" height="${h}" rx="36" fill="#ffffff"/>`;
+  s += `<text x="64" y="74" font-size="22" font-weight="700" letter-spacing="5" fill="${C.faint}">THE GAMEFEEL BENCHMARK</text>`;
+  s += `<text x="64" y="140" font-size="60" font-weight="800" fill="${C.ink}">${esc(title)}</text>`;
+  lines.forEach((t, i) => { s += `<text x="64" y="${188 + i * 36}" font-size="25" font-weight="500" fill="${C.soft}">${esc(t)}</text>`; });
+  return s;
+}
+function emptyNote(w, y, text) {
+  return `<text x="${w / 2}" y="${y}" font-size="26" font-weight="700" text-anchor="middle" fill="${C.faint}">${esc(text)}</text>`;
+}
+/* One ranked bar per row: rank, icon, name + effort, lab and price underneath, bar, value on the right. */
+function barRows(items, w, y0, rowH) {
+  const TX = 800, TW = 500, RX = w - 64;
+  let s = '';
+  items.forEach((it, i) => {
+    const d = it.d, cy = y0 + i * rowH + rowH / 2;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${it.tip}`)}">`;
+    s += `<text x="64" y="${cy + 9}" font-size="24" font-weight="700" fill="${C.faint}">${i + 1}</text>`;
+    s += iconSvg(d, 110, cy - 20, 40);
+    s += `<text x="170" y="${cy - 4}" font-size="28" font-weight="800" fill="${C.ink}">${esc(d.model)}<tspan font-size="20" font-weight="700" fill="${C.soft}">  ${esc(d.effort)}</tspan></text>`;
+    s += `<text x="170" y="${cy + 30}" font-size="20" font-weight="600" fill="${C.soft}">${esc(d.lab)} · ${esc(priceText(d))}</text>`;
+    s += `<rect x="${TX}" y="${cy - 12}" width="${TW}" height="24" rx="12" fill="${C.track}"/>`;
+    s += `<rect x="${TX}" y="${cy - 12}" width="${Math.max(8, TW * it.frac).toFixed(1)}" height="24" rx="12" fill="${d.tint}"/>`;
+    s += `<text x="${RX}" y="${cy + 13}" font-size="38" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(it.value)}<tspan font-size="19" font-weight="700" fill="${C.faint}">  ${esc(it.unit)}</tspan></text>`;
+    s += `</g>`;
+  });
+  return s;
+}
+
+/* ---------- figure: overview ---------- */
+function overviewFig(hidden) {
+  const vis = DATA.filter((d) => !hidden.has(d.id));
+  const rows = vis.filter((d) => d.complete).sort((a, b) => b.avg - a.avg);
+  const partial = vis.filter((d) => !d.complete);
+  const best = rows[0];
+  const paid = rows.filter((d) => !d.free).sort((a, b) => a.price - b.price)[0];
+  const fast = [...vis].sort((a, b) => b.tps - a.tps)[0];
+  const tiles = [
+    ['BEST OVERALL', best ? best.avg.toFixed(1) : '—', best ? `${best.model} · ${best.effort}` : 'no model shown'],
+    ['CHEAPEST PAID TASK', paid ? `$${paid.price.toFixed(2)}` : '—', paid ? `${paid.model} · ${paid.effort}` : 'no paid model shown'],
+    ['FASTEST OUTPUT', fast ? `${fast.tps} tok/s` : '—', fast ? `${fast.model} · ${fast.effort}` : 'no model shown'],
+  ];
+  const TH = 150, tw = (W - 128 - 48) / 3, rowH = 88, y0 = TOP + TH + 40;
+  const H = y0 + Math.max(rows.length, 1) * rowH + 150;
+  let body = frame(W, H, 'OVERALL · SCORES', [
+    'Average of the six scores, out of 100. Only models with all six scores are ranked.',
+    'Price per task is under each name. Hide a model in the left list to drop it from every chart.',
+  ]);
+  tiles.forEach(([label, value, sub], i) => {
+    const x = 64 + i * (tw + 24), y = TOP;
+    body += `<rect x="${x.toFixed(1)}" y="${y}" width="${tw.toFixed(1)}" height="${TH}" rx="26" fill="${C.zebra}"/>`;
+    body += `<text x="${(x + 30).toFixed(1)}" y="${y + 42}" font-size="18" font-weight="700" letter-spacing="3" fill="${C.faint}">${label}</text>`;
+    body += `<text x="${(x + 30).toFixed(1)}" y="${y + 102}" font-size="58" font-weight="800" fill="${C.ink}">${esc(value)}</text>`;
+    body += `<text x="${(x + 30).toFixed(1)}" y="${y + 134}" font-size="20" font-weight="600" fill="${C.soft}">${esc(sub)}</text>`;
+  });
+  if (rows.length) {
+    body += barRows(rows.map((d) => ({ d, frac: d.avg / 100, value: d.avg.toFixed(1), unit: '/ 100', tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })), W, y0, rowH);
+  } else {
+    body += emptyNote(W, y0 + 80, 'No model is shown. Tick one on the left.');
+  }
+  if (partial.length) {
+    body += `<text x="64" y="${H - 90}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}</text>`;
+  }
+  return { W, H, body };
+}
+
+/* ---------- figure: scores bars (overall or one subcategory) ---------- */
+function scoresFig(scope, hidden) {
+  const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
+    .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
+  const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
+  const rowH = 88, H = TOP + Math.max(rows.length, 1) * rowH + 170;
+  const lines = scope === 'overall'
+    ? ['Average of the six scores, out of 100. Only models with all six scores are ranked.', 'Price per task is under each name.']
+    : [`${SCOPE_LABEL[scope]} score alone, out of 100. Price per task is under each name.`, 'Only models with a score in this subcategory are listed.'];
+  let body = frame(W, H, `${scopeTitle(scope)} · SCORES`, lines);
+  body += rows.length
+    ? barRows(rows.map((d) => { const v = scoreOf(d, scope); return { d, frac: v / 100, value: fmtScore(v), unit: '/ 100', tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }), W, TOP, rowH)
+    : emptyNote(W, TOP + 120, 'No model is shown for this view.');
+  if (partial.length) {
+    body += `<text x="64" y="${H - 90}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}. They appear in each subcategory they have a score in.</text>`;
+  }
+  return { W, H, body };
+}
+
+/* ---------- figure: price to performance (log price vs score) ---------- */
+function paretoFront(rows, scope) {
+  const sorted = [...rows].sort((a, b) => a.px - b.px || scoreOf(b, scope) - scoreOf(a, scope));
+  const front = [];
+  let best = -Infinity;
+  for (const d of sorted) {
+    if (scoreOf(d, scope) > best) { front.push(d); best = scoreOf(d, scope); }
+  }
+  return front;
+}
+/* Real glyph widths (in figure units) from the browser, so label boxes match the drawn text. */
+const _measure = document.createElement('canvas').getContext('2d');
+const textW = (t, size, weight) => {
+  _measure.font = `${weight} ${size}px "Ubuntu Sans", "Segoe UI", system-ui, sans-serif`;
+  return _measure.measureText(t).width;
+};
+/* Places each point label where it displaces least: nearest slot above or below the dot, on either side.
+   A label must stay inside the plot and clear of every other label and every other dot and icon. */
+const LABEL_STATS = { fallback: 0 };   // labels that found no clear slot (checked by the test run)
+function placeLabels(pts, T, B, WP) {
+  const R = WP - 80, placed = [];
+  const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  const dots = pts.map((p) => ({ x0: p.x - 32, x1: p.x + 32, y0: p.y - 32, y1: p.y + 32 }));
+  const boxFor = (p, right, ly) => {
+    const iconX = right ? p.x + 44 : p.x - 84;
+    const textX = right ? iconX + 50 : iconX - 10;
+    const x0 = right ? iconX : textX - p.w, x1 = right ? textX + p.w : iconX + 40;
+    return { iconX, textX, anchor: right ? 'start' : 'end', x0, x1, y: ly, y0: ly - 25, y1: ly + 10 };
+  };
+  [...pts].sort((a, b) => a.y - b.y).forEach((p) => {
+    const sides = p.x + 100 + p.w <= R + 60 ? [true, false] : [false, true];
+    let best = null;
+    for (let k = 0; k <= 40 && !best; k++) {
+      for (const dy of k === 0 ? [0] : [32 * k, -32 * k]) {
+        for (const right of sides) {
+          const ly = p.y + dy;
+          if (ly < T + 16 || ly > B - 16) continue;
+          const box = boxFor(p, right, ly);
+          if (box.x0 < 40 || box.x1 > WP - 30) continue;
+          if (placed.some((q) => hits(q, box))) continue;   // label boxes are 31 units tall
+          if (dots.some((d) => hits(d, box))) continue;
+          best = box;
+          break;
+        }
+        if (best) break;
+      }
+    }
+    if (!best) { best = boxFor(p, sides[0], p.y); LABEL_STATS.fallback++; }   // no free slot: stay beside the dot
+    // Only the label's slot is stored on the point. p.y stays the point's own score position,
+    // so the dot is never moved to the label's height.
+    p.iconX = best.iconX; p.textX = best.textX; p.anchor = best.anchor; p.ly = best.y;
+    placed.push(best);
+  });
+  return pts;
+}
+function ppFig(scope, hidden) {
+  const H = 1700, L = 170, R = WP - 80, T = TOP + 30, B = H - 170;
+  const title = `${scopeTitle(scope)} · PRICE TO PERFORMANCE`;
+  const lines = [
+    'Price per task against score, log scale. Up and to the left is cheaper and higher.',
+    'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
+  ];
+  const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null);
+  if (!rows.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No model is shown for this view.') };
+
+  const ys = rows.map((d) => scoreOf(d, scope));
+  const x0 = Math.min(...rows.map((d) => d.px)) / 1.8, x1 = Math.max(...rows.map((d) => d.px)) * 1.8;
+  // score axis fitted to the data in steps of 5: the points get the height, not empty space
+  const y0 = Math.max(0, Math.floor((Math.min(...ys) - 6) / 5) * 5);
+  const y1 = Math.min(100, Math.max(y0 + 20, Math.ceil((Math.max(...ys) + 4) / 5) * 5));
+  const yStep = y1 - y0 <= 50 ? 5 : 10;
+  const X = (v) => L + ((Math.log10(v) - Math.log10(x0)) / (Math.log10(x1) - Math.log10(x0))) * (R - L);
+  const Y = (v) => B - ((v - y0) / (y1 - y0)) * (B - T);
+  let s = '';
+
+  // iso-value curves: score = k * price, i.e. k points per dollar
+  const ratios = rows.map((d) => scoreOf(d, scope) / d.px);
+  const lo = Math.min(...ratios) / 2, hi = Math.max(...ratios) * 2;
+  for (const k of [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].filter((k) => k >= lo && k <= hi)) {
+    let p = '';
+    for (let i = 0; i <= 80; i++) {
+      const pr = x0 * Math.pow(x1 / x0, i / 80), sc = k * pr;
+      if (sc >= y0 && sc <= y1) p += (p ? 'L' : 'M') + X(pr).toFixed(1) + ' ' + Y(sc).toFixed(1);
+    }
+    if (!p) continue;
+    s += `<path d="${p}" fill="none" stroke="${C.gold}" stroke-opacity=".4" stroke-width="2.5" stroke-dasharray="6 9"/>`;
+    const ex = Math.min(x1, y1 / k), ey = k * ex;
+    if (ex >= x0 && ey >= y0) s += `<text x="${(X(ex) + 10).toFixed(1)}" y="${(Y(ey) - 10).toFixed(1)}" font-size="17" font-weight="700" fill="${C.gold}" fill-opacity=".85">${k} pts/$</text>`;
+  }
+
+  // axes and grid
+  s += `<line x1="${L}" y1="${B}" x2="${R}" y2="${B}" stroke="${C.ink}" stroke-opacity=".2" stroke-width="2"/>`;
+  s += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="${C.ink}" stroke-opacity=".2" stroke-width="2"/>`;
+  for (let v = Math.ceil(y0 / yStep) * yStep; v <= y1; v += yStep) {
+    s += `<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${R}" y2="${Y(v).toFixed(1)}" stroke="${C.ink}" stroke-opacity=".06" stroke-width="2"/>`;
+    s += `<text x="${L - 18}" y="${(Y(v) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${v}</text>`;
+  }
+  for (const t of [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5]) {
+    if (t < x0 || t > x1) continue;
+    s += `<line x1="${X(t).toFixed(1)}" y1="${B}" x2="${X(t).toFixed(1)}" y2="${B + 10}" stroke="${C.ink}" stroke-opacity=".3" stroke-width="2"/>`;
+    s += `<text x="${X(t).toFixed(1)}" y="${B + 42}" font-size="22" font-weight="700" text-anchor="middle" fill="${C.soft}">$${t}</text>`;
+  }
+  s += `<text x="${(L + R) / 2}" y="${B + 86}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}">price per task (log scale) · free models are drawn at $0.02</text>`;
+  s += `<text x="34" y="${(T + B) / 2}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}" transform="rotate(-90 34 ${(T + B) / 2})">score (out of 100)</text>`;
+
+  // pareto frontier: straight segments between the non-dominated points
+  const front = paretoFront(rows, scope);
+  if (front.length > 1) {
+    s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
+  }
+  // same model at several effort levels: a dotted line joins them
+  const fam = {};
+  rows.forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
+  Object.values(fam).forEach((g) => {
+    if (g.length < 2) return;
+    const seq = [...g].sort((a, b) => a.px - b.px);
+    s += `<path d="${seq.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${g[0].tint}" stroke-opacity=".6" stroke-width="4" stroke-dasharray="2 10" stroke-linecap="round"/>`;
+  });
+
+  const pts = placeLabels(rows.map((d) => {
+    const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScore(sc)}`;
+    return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
+  }), T, B, WP);
+  pts.forEach((p) => {
+    const d = p.d;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScore(p.sc)}`)}">`;
+    if (front.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
+    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="26" fill="${d.tint}" fill-opacity=".15"/>`;
+    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${d.tint}"/>`;
+    if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
+    s += iconSvg(d, p.iconX, p.ly - 20, 40);
+    s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan></text>`;
+    s += `</g>`;
+  });
+  return { W: WP, H, body: frame(WP, H, title, lines) + s, wide: true };
+}
+
+/* ---------- figure: profiles (radar) ---------- */
+function radarFig(ids, hidden) {
+  const H = 1000, cx = 520, cy = 590, R = 280;
+  const AX = [['create', 'coding · create'], ['bugfix', 'coding · bugfix'], ['gamefeel', 'gamefeel'],
+    ['ideas', 'creativity · ideas'], ['visuals', 'creativity · visuals'], ['audio', 'creativity · audio']];
+  const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / AX.length;
+  const pt = (i, r) => [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
+  const sel = DATA.filter((d) => ids.includes(d.id) && !hidden.has(d.id));
+  const lines = [
+    'Six scores as one shape per model. Rings are 20 points apart, out to 100.',
+    'Pick models with the chips above. The list on the right shows each model’s strongest score.',
+  ];
+  let s = '';
+  const ringPath = (r) => AX.map((_, i) => { const [x, y] = pt(i, r); return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join('') + 'Z';
+  for (let ring = 1; ring <= 5; ring++) {
+    s += `<path d="${ringPath((R * ring) / 5)}" fill="none" stroke="${C.ink}" stroke-opacity=".1" stroke-width="2"/>`;
+    const [tx, ty] = pt(0, (R * ring) / 5);
+    s += `<text x="${(tx + 10).toFixed(1)}" y="${(ty - 6).toFixed(1)}" font-size="17" font-weight="700" fill="${C.faint}">${ring * 20}</text>`;
+  }
+  AX.forEach(([, label], i) => {
+    const [x, y] = pt(i, R), [lx, ly] = pt(i, R + 64), c = Math.cos(ang(i));
+    s += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${C.ink}" stroke-opacity=".12" stroke-width="2"/>`;
+    const anchor = Math.abs(c) < 0.2 ? 'middle' : c > 0 ? 'start' : 'end';
+    s += `<text x="${lx.toFixed(1)}" y="${(ly + 7).toFixed(1)}" font-size="22" font-weight="700" text-anchor="${anchor}" fill="${C.soft}">${esc(label)}</text>`;
+  });
+  sel.forEach((d) => {
+    const poly = AX.map(([k], i) => { const [x, y] = pt(i, (R * (d[k] ?? 0)) / 100); return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join('') + 'Z';
+    s += `<g data-m="${esc(d.id)}"><path d="${poly}" fill="${d.tint}" fill-opacity=".1" stroke="${d.tint}" stroke-width="4" stroke-linejoin="round"/>`;
+    AX.forEach(([k, label], i) => {
+      if (d[k] == null) return;
+      const [x, y] = pt(i, (R * d[k]) / 100);
+      s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="${d.tint}" data-tip="${esc(`${d.model} · ${d.effort} · ${label}: ${d[k]}`)}"/>`;
+    });
+    s += `</g>`;
+  });
+  const px = 1010;
+  s += `<text x="${px}" y="${TOP + 10}" font-size="22" font-weight="800" letter-spacing="3" fill="${C.faint}">SELECTED · ${sel.length}</text>`;
+  if (!sel.length) s += `<text x="${px}" y="${TOP + 60}" font-size="24" font-weight="600" fill="${C.soft}">Pick models with the chips above.</text>`;
+  sel.slice(0, 10).forEach((d, i) => {
+    const y = TOP + 50 + i * 60;
+    const best = AX.filter(([k]) => d[k] != null).sort((a, b) => d[b[0]] - d[a[0]])[0];
+    s += `<g data-m="${esc(d.id)}">`;
+    s += iconSvg(d, px, y - 14, 44);
+    s += `<text x="${px + 62}" y="${y + 6}" font-size="26" font-weight="800" fill="${C.ink}">${esc(d.model)}<tspan font-size="19" font-weight="700" fill="${C.soft}">  ${esc(d.effort)}</tspan></text>`;
+    s += `<text x="${px + 62}" y="${y + 30}" font-size="18" font-weight="600" fill="${C.soft}">strongest: ${esc(best ? best[1] : '—')}</text>`;
+    s += `<text x="1536" y="${y + 18}" font-size="40" font-weight="800" text-anchor="end" fill="${C.ink}">${d.complete ? d.avg.toFixed(1) : 'partial'}</text>`;
+    s += `</g>`;
+  });
+  if (sel.length > 10) s += `<text x="${px}" y="${TOP + 50 + 10 * 60}" font-size="20" font-weight="600" fill="${C.faint}">+ ${sel.length - 10} more not listed</text>`;
+  return { W, H, body: frame(W, H, 'PROFILES · SCORE SHAPES', lines) + s };
+}
+
+/* ---------- figure: speed ---------- */
+function speedFig(metric, hidden) {
+  const tps = metric === 'tps';
+  const rows = DATA.filter((d) => !hidden.has(d.id))
+    .sort((a, b) => (tps ? b.tps - a.tps : a.timeMin - b.timeMin));
+  const max = Math.max(1, ...rows.map((d) => (tps ? d.tps : d.timeMin)));
+  const items = rows.map((d) => {
+    const v = tps ? d.tps : d.timeMin;
+    return { d, frac: v / max, value: String(v), unit: tps ? 'tok/s' : 'min/task', tip: `${v} ${tps ? 'tok/s' : 'min per task'} · ${priceText(d)}` };
+  });
+  const rowH = 88, H = TOP + Math.max(rows.length, 1) * rowH + 170;
+  const title = tps ? 'THROUGHPUT · TOKENS PER SECOND' : 'TIME SPENT · MINUTES PER TASK';
+  const lines = tps
+    ? ['Output speed of each model. Longer bar = faster.', 'Context compression (how often a model summarises to fit its window) is in the ledger.']
+    : ['Minutes each model spent per task. Shorter bar = quicker.', 'Context compression (how often a model summarises to fit its window) is in the ledger.'];
+  return { W, H, body: frame(W, H, title, lines) + barRows(items, W, TOP, rowH) };
+}
+
+/* ---------- figure: ledger (every column, sortable) ---------- */
+const LEDGER = [
+  ['model', 'MODEL', 450, 'start'], ['effort', 'EFFORT', 130, 'start'], ['price', '$/TASK', 110, 'end'],
+  ['basis', 'BASIS', 150, 'start'], ['context', 'CONTEXT', 120, 'end'], ['timeMin', 'MIN/TASK', 130, 'end'],
+  ['compress', 'COMPRESS', 130, 'end'], ['tps', 'TOK/S', 110, 'end'],
+  ...SCORE_KEYS.map((k) => [k, k.toUpperCase(), 120, 'end']),
+  ['avg', 'AVG', 120, 'end'], ['value', 'PTS/$', 120, 'end'],
+];
+function sortRows(rows, sort) {
+  return [...rows].sort((a, b) => {
+    const va = a[sort.key], vb = b[sort.key];
+    if (va == null || vb == null) return va == null && vb == null ? 0 : va == null ? 1 : -1;
+    if (typeof va === 'string') return va.localeCompare(vb) * sort.dir;
+    return (va - vb) * sort.dir;
+  });
+}
+function cellText(d, k) {
+  switch (k) {
+    case 'effort': return d.effort;
+    case 'price': return d.free ? 'free' : `$${d.price.toFixed(2)}`;
+    case 'basis': return BASIS_WORD[d.basis] || d.basis;
+    case 'context': return d.context;
+    case 'timeMin': return String(d.timeMin);
+    case 'compress': return String(d.compress);
+    case 'tps': return String(d.tps);
+    case 'avg': return d.avg == null ? '—' : d.avg.toFixed(1) + (d.complete ? '' : '*');
+    case 'value': return d.value == null ? '—' : d.value.toFixed(1);
+    default: return d[k] == null ? '—' : String(d[k]);
+  }
+}
+function ledgerFig(sort, hidden) {
+  const rows = sortRows(DATA.filter((d) => !hidden.has(d.id)), sort);
+  const total = LEDGER.reduce((a, c) => a + c[2], 0), left = (WL - total) / 2;
+  const top = TOP + 40, rowH = 74;
+  const H = top + Math.max(rows.length, 1) * rowH + 150;
+  const lines = ['Click a column heading to sort. PTS/$ = average score per dollar of task price.', '* = partial record, not in overall. Free models have no price, so no PTS/$.'];
+  let s = '', x = left;
+  LEDGER.forEach(([k, label, w, anchor]) => {
+    const on = sort.key === k, arrow = on ? (sort.dir < 0 ? ' ▾' : ' ▴') : '';
+    const tx = anchor === 'end' ? x + w - 14 : x + 14;
+    s += `<rect data-sortkey="${k}" x="${x}" y="${top - 40}" width="${w}" height="44" rx="10" fill="transparent"/>`;
+    s += `<text x="${tx}" y="${top - 10}" font-size="18" font-weight="800" letter-spacing="1" text-anchor="${anchor}" fill="${on ? C.azure : C.faint}" pointer-events="none">${label}${arrow}</text>`;
+    x += w;
+  });
+  rows.forEach((d, i) => {
+    const y = top + i * rowH, ty = y + rowH / 2 + 8;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)}`)}">`;
+    if (i % 2 === 0) s += `<rect x="${left - 16}" y="${y}" width="${total + 32}" height="${rowH - 4}" rx="12" fill="${C.zebra}"/>`;
+    x = left;
+    LEDGER.forEach(([k, , w, anchor]) => {
+      if (k === 'model') {
+        s += iconSvg(d, x + 10, y + 10, 32);
+        s += `<text x="${x + 52}" y="${ty}" font-size="25" font-weight="800" fill="${C.ink}">${esc(d.model)}</text>`;
+      } else {
+        const tx = anchor === 'end' ? x + w - 14 : x + 14, avg = k === 'avg';
+        s += `<text x="${tx}" y="${ty}" font-size="24" font-weight="${avg ? 800 : 600}" text-anchor="${anchor}" fill="${avg ? C.ink : C.soft}">${esc(cellText(d, k))}</text>`;
+      }
+      x += w;
+    });
+    s += `</g>`;
+  });
+  if (!rows.length) s += emptyNote(WL, top + 80, 'No model is shown. Tick one on the left.');
+  return { W: WL, H, body: frame(WL, H, 'EVERYTHING, ON ONE LEDGER', lines) + s };
+}
+
+/* ---------- app state ---------- */
+const TABS_KEYS = TABS.map((t) => t[0]);
+const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
+const state = {
+  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps',
+  sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
+};
+
+function buildCurrent() {
+  switch (state.tab) {
+    case 'overview': return overviewFig(state.hidden);
+    case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, state.hidden) : ppFig(state.scope, state.hidden);
+    case 'profiles': return radarFig([...state.prof], state.hidden);
+    case 'speed': return speedFig(state.metric, state.hidden);
+    case 'ledger': return ledgerFig(state.sort, state.hidden);
+    default: return overviewFig(state.hidden);
+  }
+}
+function controlsHTML() {
+  switch (state.tab) {
+    case 'overview':
+      return '<span class="hint">Models with all six scores · tick a model on the left to hide it everywhere</span>';
+    case 'explorer':
+      return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
+        `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    case 'profiles':
+      return DATA.map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
+        '<button type="button" class="chip plain" data-act="top3">reset to top 3</button>';
+    case 'speed':
+      return `<div class="seg"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}">Minutes per task</button></div>`;
+    case 'ledger':
+      return '<span class="hint">Click a column heading to sort, click again to reverse</span>';
+    default: return '';
+  }
+}
+
+function applySpot() {
+  document.querySelectorAll('#stage [data-m]').forEach((el) => {
+    el.style.opacity = !state.spot || el.dataset.m === state.spot ? '' : '0.16';
+  });
+}
+function renderSidebar() {
+  const q = $('#q').value.trim().toLowerCase();
+  const list = DATA.filter((d) => !q || `${d.model} ${d.effort} ${d.lab}`.toLowerCase().includes(q));
+  $('#modelList').innerHTML = list.map((d) => {
+    const on = !state.hidden.has(d.id);
+    return `<label class="mrow ${on ? '' : 'off'}" data-row="${esc(d.id)}">` +
+      `<input type="checkbox" data-hide="${esc(d.id)}" ${on ? 'checked' : ''} />${iconHTML(d)}` +
+      `<span class="mtxt"><b>${esc(d.model)}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
+      `<span class="mavg">${d.complete ? d.avg.toFixed(1) : 'partial'}</span></label>`;
+  }).join('') || '<div class="side-foot">No model matches that filter.</div>';
+  $('#shown').textContent = `${DATA.length - state.hidden.size} of ${DATA.length} shown`;
+}
+function render() {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
+  $('#controls').innerHTML = controlsHTML();
+  const f = buildCurrent();
+  $('#stage').innerHTML = `<div class="fig${f.wide ? ' wide' : ''}"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
+  $('#stage').scrollTop = 0;
+  applySpot();
+  renderSidebar();
+  writeHash();
+}
+function readHash() {
+  const [tab, a, b] = decodeURIComponent(location.hash.slice(1)).split('/');
+  if (TABS_KEYS.includes(tab)) state.tab = tab;
+  if (tab === 'explorer') {
+    if (SCOPES.some(([k]) => k === a)) state.scope = a;
+    if (b === 'p2p' || b === 'score') state.mode = b === 'p2p' ? 'p2p' : 'score';
+  }
+  if (tab === 'speed' && (a === 'min' || a === 'tps')) state.metric = a;
+}
+function writeHash() {
+  let h = state.tab;
+  if (state.tab === 'explorer') h += `/${state.scope}/${state.mode === 'p2p' ? 'p2p' : 'score'}`;
+  if (state.tab === 'speed') h += `/${state.metric}`;
+  history.replaceState(null, '', `#${h}`);
+}
+const toggle = (set, v) => (set.has(v) ? set.delete(v) : set.add(v));
+
+/* ---------- events ---------- */
+$('#tabs').innerHTML = TABS.map(([k, l], i) => `<button type="button" data-tab="${k}">${l}<kbd>${i + 1}</kbd></button>`).join('');
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.tab = b.dataset.tab; render();
+});
+$('#controls').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const ds = b.dataset;
+  if (ds.scope) state.scope = ds.scope;
+  else if (ds.mode) state.mode = ds.mode;
+  else if (ds.metric) state.metric = ds.metric;
+  else if (ds.prof) toggle(state.prof, ds.prof);
+  else if (ds.act === 'top3') state.prof = new Set(TOP3());
+  else return;
+  render();
+});
+$('#stage').addEventListener('click', (e) => {
+  const h = e.target.closest('[data-sortkey]'); if (!h) return;
+  const k = h.dataset.sortkey;
+  state.sort = state.sort.key === k ? { key: k, dir: -state.sort.dir } : { key: k, dir: ['model', 'effort', 'basis'].includes(k) ? 1 : -1 };
+  render();
+});
+$('#modelList').addEventListener('change', (e) => {
+  const id = e.target.dataset.hide; if (!id) return;
+  toggle(state.hidden, id); render();
+});
+$('#modelList').addEventListener('mouseover', (e) => {
+  const r = e.target.closest('[data-row]'); const id = r ? r.dataset.row : null;
+  if (id !== state.spot) { state.spot = id; applySpot(); }
+});
+$('#modelList').addEventListener('mouseleave', () => { state.spot = null; applySpot(); });
+$('#q').addEventListener('input', renderSidebar);
+$('#showAll').addEventListener('click', () => { state.hidden.clear(); render(); });
+$('#hideAll').addEventListener('click', () => { state.hidden = new Set(DATA.map((d) => d.id)); render(); });
+const tip = $('#tip');
+$('#stage').addEventListener('mousemove', (e) => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tip.style.opacity = 0; return; }
+  tip.textContent = t.dataset.tip;
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(e.clientX + 18, innerWidth - 480) + 'px';
+  tip.style.top = (e.clientY + 18) + 'px';
+});
+$('#stage').addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+  const i = '12345'.indexOf(e.key);
+  if (i >= 0) { state.tab = TABS_KEYS[i]; render(); }
+});
+window.addEventListener('hashchange', () => { readHash(); render(); });
+
+/* ---------- export hooks (used by export-figures.mjs; they ignore the visible filters) ---------- */
+const EXPORTS = [
+  { name: '01-overview', build: () => overviewFig(NONE) },
+  { name: '02-profiles', build: () => radarFig(TOP3(), NONE) },
+  { name: '03-speed-tokens', build: () => speedFig('tps', NONE) },
+  { name: '04-speed-minutes', build: () => speedFig('min', NONE) },
+  { name: '05-ledger', build: () => ledgerFig({ key: 'avg', dir: -1 }, NONE) },
+  ...SCOPES.flatMap(([k]) => [
+    { name: `scores-${k}`, build: () => scoresFig(k, NONE) },
+    { name: `price-performance-${k}`, build: () => ppFig(k, NONE) },
+  ]),
+];
+window.renderExport = (name) => {
+  const e = EXPORTS.find((x) => x.name === name);
+  if (!e) throw new Error('unknown export ' + name);
+  const f = e.build();
+  $('#exportStage').innerHTML = `<div class="fig"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
+  document.body.classList.add('exporting');
+  return { W: f.W, H: f.H };
+};
+
+/* Start-up: load the data, then draw. window.EXPORTS is set only once the data is in, so the
+   export script can wait for it. */
+async function init() {
+  try {
+    ({ rows: DATA, icons: ICONS, meta: META } = await loadData());
+  } catch (err) {
+    console.error(err);
+    $('#stage').innerHTML = `<div class="fig"><p class="notice">The data could not be loaded (${esc(err.message)}). ` +
+      'Open the page from its web address, not as a local file. The README explains how to preview it.</p></div>';
+    return;
+  }
+  deriveFields();
+  state.prof = new Set(TOP3());
+  $('#meta').innerHTML = `${DATA.length} entries · updated ${esc(META.updated)}<br>` +
+    '<a href="data/gamefeelbench.csv" download>Download the data (CSV)</a>';
+  window.EXPORTS = EXPORTS.map((e) => e.name);
+  window.LABEL_STATS = LABEL_STATS;
+  readHash();
+  render();
+}
+init();
