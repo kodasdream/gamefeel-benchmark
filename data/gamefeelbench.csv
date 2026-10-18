@@ -16,3 +16,5 @@ Opus-5.5,Medium,anthropic,Anthropic,0.88,sub,1M,210,3,67,78,73,71,64,80,45,68.5
 GLM-5.3-Flash,Max,zhipu,Zhipu AI,0.58,sub,1M,270,1,110,72,77,57,50,43,47,57.7
 Qwen-3.8-Flash-Next,XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,15,0,140,70,70,75,67,52,65,66.5
 Haiku-5.5,XHigh,anthropic,Anthropic,0.12,sub,1M,22,0,180,71,65,68,56,73,44,62.8
+Deepseek V4.1-Flash-1017,Max,deepseek,DeepSeek,0.85,api,1M,85,0,345,80,69,62,57,80,75,70.5
+Gemini-4-Argon,High,google,Google DeepMind,4.6,sub,1M,35,1,120,78,70,60,55,90,55,68
