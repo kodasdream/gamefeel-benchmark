@@ -1,12 +1,14 @@
 # The Gamefeel Benchmark
 
-A creativity benchmark for AI models on game development. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel and creativity. The site shows each model's scores against its price per task.
+A creativity benchmark for AI models on game development. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel, creativity and reverse-evaluation (RE). The site shows each model's scores against its price per task.
 
 **Open the benchmark:** https://kodasdream.github.io/gamefeel-benchmark/
 
 ## The data
 
 The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefeelbench.csv), one row per model and effort level. [`data/labs.csv`](data/labs.csv) maps each `lab_key` to its lab name, colour and logo.
+
+The scores are on the **v1.4 standard**: coding scores are 15 points lower than in v1.3, and the gamefeel and creativity scores are 25 points lower. The Gamefeel RE score is not changed by the standard.
 
 | Column | Meaning |
 |---|---|
@@ -21,7 +23,8 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 | `create`, `bugfix` | Coding scores, out of 100 |
 | `gamefeel` | Gamefeel score, out of 100 |
 | `ideas`, `visuals`, `audio` | Creativity scores, out of 100 |
-| `avg` | Average of the scores the model has. The overall ranking only uses models with all six scores |
+| `re` | Gamefeel Reverse-Evaluation (RE), out of 100 |
+| `avg` | Average of the seven scores (the six scores and `re`). The overall ranking only uses models with all seven |
 
 A blank score means the model has no score for that subcategory.
 
@@ -31,6 +34,7 @@ A blank score means the model has no score for that subcategory.
 - **Coding, bugfix:** find bugs planted in a game.
 - **Gamefeel:** add 30 to 100 new items and balance changes to a game without breaking its balance.
 - **Creativity:** the ideas, visuals and audio the model produces for the content it adds on its own.
+- **Gamefeel RE (Reverse-Evaluation):** the model rates other models' results and real game changelogs. Scored on its rating error and on how well its ratings separate real changes from rejected ones.
 
 ## Preview the site on your computer
 

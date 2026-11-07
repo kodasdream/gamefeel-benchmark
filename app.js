@@ -65,23 +65,25 @@ async function loadData() {
 }
 
 /* ---------- constants ---------- */
-const SCORE_KEYS = ['create', 'bugfix', 'gamefeel', 'ideas', 'visuals', 'audio'];
+const SCORE_KEYS = ['create', 'bugfix', 'gamefeel', 'ideas', 'visuals', 'audio', 're'];
 const SCOPES = [
   ['overall', 'Overall'], ['create', 'Coding · create'], ['bugfix', 'Coding · bugfix'], ['gamefeel', 'Gamefeel'],
   ['ideas', 'Creativity · ideas'], ['visuals', 'Creativity · visuals'], ['audio', 'Creativity · audio'],
+  ['re', 'Gamefeel · RE'],
 ];
 const SCOPE_LABEL = Object.fromEntries(SCOPES);
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
 const W = 1600;                    // figure width (ledger uses WL)
-const WL = 2400;
+const WL = 2480;
 const WP = 3400;                 // price-to-performance canvas: 2:1 (18:9), wider than the rest for room
 const TOP = 280;                   // first content line, below the title block
 const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb' };
 const NONE = new Set();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const standardTag = () => (META.standard ? ` · ${esc(META.standard).toUpperCase()}` : '');
 
 /* ---------- derived fields (run once the data has loaded) ---------- */
 function deriveFields() {
@@ -94,7 +96,7 @@ function deriveFields() {
     d.value = d.avg != null && !d.free ? Math.round((d.avg / d.price) * 10) / 10 : null;
   });
 }
-// Overall only ranks models with all six scores. Subcategories rank any model with that score.
+// Overall only ranks models with all seven scores (six scores plus Gamefeel RE). Subcategories rank any model with that score.
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null) : (d[scope] ?? null));
 const priceText = (d) => (d.free ? 'free' : `$${d.price.toFixed(2)}/task · ${BASIS_WORD[d.basis] || d.basis}`);
 const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
@@ -111,7 +113,7 @@ function iconHTML(d) {
 }
 function frame(w, h, title, lines) {
   let s = `<rect width="${w}" height="${h}" rx="36" fill="#ffffff"/>`;
-  s += `<text x="64" y="74" font-size="22" font-weight="700" letter-spacing="5" fill="${C.faint}">THE GAMEFEEL BENCHMARK</text>`;
+  s += `<text x="64" y="74" font-size="22" font-weight="700" letter-spacing="5" fill="${C.faint}">THE GAMEFEEL BENCHMARK${standardTag()}</text>`;
   s += `<text x="64" y="140" font-size="60" font-weight="800" fill="${C.ink}">${esc(title)}</text>`;
   lines.forEach((t, i) => { s += `<text x="64" y="${188 + i * 36}" font-size="25" font-weight="500" fill="${C.soft}">${esc(t)}</text>`; });
   return s;
@@ -154,7 +156,7 @@ function overviewFig(hidden) {
   const TH = 150, tw = (W - 128 - 48) / 3, rowH = 88, y0 = TOP + TH + 40;
   const H = y0 + Math.max(rows.length, 1) * rowH + 150;
   let body = frame(W, H, 'OVERALL · SCORES', [
-    'Average of the six scores, out of 100. Only models with all six scores are ranked.',
+    'Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.',
     'Price per task is under each name. Hide a model in the left list to drop it from every chart.',
   ]);
   tiles.forEach(([label, value, sub], i) => {
@@ -182,8 +184,8 @@ function scoresFig(scope, hidden) {
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const rowH = 88, H = TOP + Math.max(rows.length, 1) * rowH + 170;
   const lines = scope === 'overall'
-    ? ['Average of the six scores, out of 100. Only models with all six scores are ranked.', 'Price per task is under each name.']
-    : [`${SCOPE_LABEL[scope]} score alone, out of 100. Price per task is under each name.`, 'Only models with a score in this subcategory are listed.'];
+    ? ['Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.', 'Price per task is under each name.']
+    : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone, out of 100. Price per task is under each name.`, 'Only models with a score in this subcategory are listed.'];
   let body = frame(W, H, `${scopeTitle(scope)} · SCORES`, lines);
   body += rows.length
     ? barRows(rows.map((d) => { const v = scoreOf(d, scope); return { d, frac: v / 100, value: fmtScore(v), unit: '/ 100', tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }), W, TOP, rowH)
@@ -335,12 +337,13 @@ function ppFig(scope, hidden) {
 function radarFig(ids, hidden) {
   const H = 1000, cx = 520, cy = 590, R = 280;
   const AX = [['create', 'coding · create'], ['bugfix', 'coding · bugfix'], ['gamefeel', 'gamefeel'],
-    ['ideas', 'creativity · ideas'], ['visuals', 'creativity · visuals'], ['audio', 'creativity · audio']];
+    ['ideas', 'creativity · ideas'], ['visuals', 'creativity · visuals'], ['audio', 'creativity · audio'],
+    ['re', 'gamefeel · RE']];
   const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / AX.length;
   const pt = (i, r) => [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
   const sel = DATA.filter((d) => ids.includes(d.id) && !hidden.has(d.id));
   const lines = [
-    'Six scores as one shape per model. Rings are 20 points apart, out to 100.',
+    'Seven scores as one shape per model. Rings are 20 points apart, out to 100.',
     'Pick models with the chips above. The list on the right shows each model’s strongest score.',
   ];
   let s = '';
@@ -426,6 +429,7 @@ function cellText(d, k) {
     case 'timeMin': return String(d.timeMin);
     case 'compress': return String(d.compress);
     case 'tps': return String(d.tps);
+    case 're': return d.re == null ? '—' : d.re.toFixed(1);
     case 'avg': return d.avg == null ? '—' : d.avg.toFixed(1) + (d.complete ? '' : '*');
     case 'value': return d.value == null ? '—' : d.value.toFixed(1);
     default: return d[k] == null ? '—' : String(d[k]);
@@ -436,7 +440,7 @@ function ledgerFig(sort, hidden) {
   const total = LEDGER.reduce((a, c) => a + c[2], 0), left = (WL - total) / 2;
   const top = TOP + 40, rowH = 74;
   const H = top + Math.max(rows.length, 1) * rowH + 150;
-  const lines = ['Click a column heading to sort. PTS/$ = average score per dollar of task price.', '* = partial record, not in overall. Free models have no price, so no PTS/$.'];
+  const lines = ['Click a column heading to sort. PTS/$ = average score per dollar of task price.', '* = partial record, not in overall. Free models have no price, so no PTS/$. RE = Gamefeel Reverse-Evaluation.'];
   let s = '', x = left;
   LEDGER.forEach(([k, label, w, anchor]) => {
     const on = sort.key === k, arrow = on ? (sort.dir < 0 ? ' ▾' : ' ▴') : '';
@@ -487,7 +491,7 @@ function buildCurrent() {
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
-      return '<span class="hint">Models with all six scores · tick a model on the left to hide it everywhere</span>';
+      return '<span class="hint">Models with all seven scores · tick a model on the left to hide it everywhere</span>';
     case 'explorer':
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
         `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -632,7 +636,7 @@ async function init() {
   }
   deriveFields();
   state.prof = new Set(TOP3());
-  $('#meta').innerHTML = `${DATA.length} entries · updated ${esc(META.updated)}<br>` +
+  $('#meta').innerHTML = `${DATA.length} entries${META.standard ? ` · standard ${esc(META.standard)}` : ''} · updated ${esc(META.updated)}<br>` +
     '<a href="data/gamefeelbench.csv" download>Download the data (CSV)</a>';
   window.EXPORTS = EXPORTS.map((e) => e.name);
   window.LABEL_STATS = LABEL_STATS;
