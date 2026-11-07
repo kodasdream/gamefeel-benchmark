@@ -58,6 +58,7 @@ async function loadData() {
       price: Number(r.price_per_task_usd || 0), basis: r.billing, context: r.context,
       timeMin: Number(r.minutes_per_task || 0), compress: Number(r.context_compression_per_task || 0),
       tps: Number(r.tokens_per_second || 0),
+      openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k])])),
     };
   });
@@ -76,6 +77,8 @@ const SUBCATEGORY_LIST = SCOPES.slice(1).map(([, l]) => l).join(', ');   // the 
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
+const HIGHLIGHT = 'Qwen-4-27B-Early';                  // measured in purple against the frontier line
+const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
 const W = 1600;                    // figure width (ledger uses WL)
 const WC = 2600;                   // bar charts: 24 columns side by side, wide enough for chunky bars
 const WL = 2480;
@@ -311,7 +314,7 @@ function ppFig(scope, hidden) {
     'Price per task against score, log scale. Up and to the left is cheaper and higher.',
     'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
   ];
-  if (scope === 're') lines.push('Qwen-4-27B-Early is left off the blue line, so the purple lines can measure it against that line.');
+  if (HIGHLIGHT_SCOPES.has(scope)) lines.push(`${HIGHLIGHT} is left off the blue line, so the purple lines can measure it against that line.`);
   const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null);
   if (!rows.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No model is shown for this view.') };
 
@@ -356,8 +359,8 @@ function ppFig(scope, hidden) {
   s += `<text x="34" y="${(T + B) / 2}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}" transform="rotate(-90 34 ${(T + B) / 2})">score (out of 100)</text>`;
 
   // pareto frontier: straight segments between the non-dominated points
-  // GameFeel RE: Qwen-4-27B-Early is left off the line, so the purple lines can measure it against that line
-  const offLine = scope === 're' ? 'Qwen-4-27B-Early' : null;
+  // Overall and GameFeel RE: Qwen-4-27B-Early is left off the line, so the purple lines can measure it against that line
+  const offLine = HIGHLIGHT_SCOPES.has(scope) ? HIGHLIGHT : null;
   const front = paretoFront(rows.filter((d) => d.model !== offLine), scope);
   if (front.length > 1) {
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
@@ -404,6 +407,95 @@ function ppFig(scope, hidden) {
     s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan></text>`;
     s += `</g>`;
   });
+  return { W: WP, H, body: frame(WP, H, title, lines) + s, wide: true };
+}
+
+/* ---------- figure: size to performance (log model size vs score; open-weight models with a size only) ---------- */
+function sizeFig(scope, hidden) {
+  const title = `${scopeTitle(scope)} · SIZE TO PERFORMANCE`;
+  const lines = [
+    'Model size against score, log scale. Up and to the left is smaller and higher.',
+    'Open-weight models with a recorded size only. Blue ring and line: pareto frontier, no model on it is both smaller and higher.',
+    `${HIGHLIGHT} is left off the blue line (purple ring), so the purple lines measure it against the line only where the line reaches it.`,
+  ];
+  const shown = DATA.filter((d) => !hidden.has(d.id) && d.openWeights && d.size != null && scoreOf(d, scope) != null);
+  if (!shown.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No open-weight model with a size is shown for this view.') };
+  const rows = shown.map((d) => ({ ...d, px: d.size }));     // paretoFront reads px as the cost; here the cost is the size
+  const q = rows.find((d) => d.model === HIGHLIGHT) || null;
+  const front = paretoFront(rows.filter((d) => d !== q), scope);
+
+  // footnotes: the sizes with their quantization, what is still missing, and what the line cannot measure
+  const notes = [`Sizes: ${rows.map((d) => `${d.model} ${d.size} GB${d.sizeBasis ? ` (${d.sizeBasis})` : ''}`).join('; ')}.`];
+  const unsized = [...new Set(DATA.filter((d) => !hidden.has(d.id) && d.openWeights && d.size == null).map((d) => d.model))];
+  if (unsized.length) notes.push(`Not shown, open weights but no size yet: ${unsized.join(', ')}.`);
+  if (q) {
+    const sq = scoreOf(q, scope);
+    if (lineScoreAt(front, scope, q.px) == null) notes.push(`The blue line does not reach ${q.size} GB, so it cannot measure ${q.model} at its size.`);
+    if (linePriceAt(front, scope, sq) == null) notes.push(`The blue line does not reach a score of ${fmtScore(sq)}, so the size ${q.model} would be expected at is not drawn.`);
+  }
+
+  const B = 1530, H = B + 170 + 36 * notes.length, T = TOP + 30, L = 170, R = WP - 80;
+  const xs = rows.map((d) => d.size), ys = rows.map((d) => scoreOf(d, scope));
+  const x0 = Math.min(...xs) / 1.8, x1 = Math.max(...xs) * 1.8;
+  // score axis fitted to the data in steps of 5, as in the price chart
+  const y0 = Math.max(0, Math.floor((Math.min(...ys) - 6) / 5) * 5);
+  const y1 = Math.min(100, Math.max(y0 + 20, Math.ceil((Math.max(...ys) + 4) / 5) * 5));
+  const yStep = y1 - y0 <= 50 ? 5 : 10;
+  const X = (v) => L + ((Math.log10(v) - Math.log10(x0)) / (Math.log10(x1) - Math.log10(x0))) * (R - L);
+  const Y = (v) => B - ((v - y0) / (y1 - y0)) * (B - T);
+  let s = '';
+
+  // axes and grid
+  s += `<line x1="${L}" y1="${B}" x2="${R}" y2="${B}" stroke="${C.ink}" stroke-opacity=".2" stroke-width="2"/>`;
+  s += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="${C.ink}" stroke-opacity=".2" stroke-width="2"/>`;
+  for (let v = Math.ceil(y0 / yStep) * yStep; v <= y1; v += yStep) {
+    s += `<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${R}" y2="${Y(v).toFixed(1)}" stroke="${C.ink}" stroke-opacity=".06" stroke-width="2"/>`;
+    s += `<text x="${L - 18}" y="${(Y(v) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${v}</text>`;
+  }
+  for (const t of [10, 20, 50, 100, 200, 500, 1000, 2000]) {
+    if (t < x0 || t > x1) continue;
+    s += `<line x1="${X(t).toFixed(1)}" y1="${B}" x2="${X(t).toFixed(1)}" y2="${B + 10}" stroke="${C.ink}" stroke-opacity=".3" stroke-width="2"/>`;
+    s += `<text x="${X(t).toFixed(1)}" y="${B + 42}" font-size="22" font-weight="700" text-anchor="middle" fill="${C.soft}">${t} GB</text>`;
+  }
+  s += `<text x="${(L + R) / 2}" y="${B + 86}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}">model size (GB, log scale)</text>`;
+  s += `<text x="34" y="${(T + B) / 2}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}" transform="rotate(-90 34 ${(T + B) / 2})">score (out of 100)</text>`;
+
+  // pareto frontier: straight segments between the non-dominated points, in log size
+  if (front.length > 1) {
+    s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
+  }
+  // purple, as in the price chart: how far it sits above the line at its size, and the size the line expects for its score
+  if (q) {
+    const sq = scoreOf(q, scope), lineAt = lineScoreAt(front, scope, q.px), sizeAt = linePriceAt(front, scope, sq);
+    if (lineAt != null) {
+      const x = (X(q.px) - 46).toFixed(1);
+      s += `<line x1="${x}" y1="${Y(lineAt).toFixed(1)}" x2="${x}" y2="${Y(sq).toFixed(1)}" stroke="${C.purple}" stroke-width="5" stroke-linecap="round"/>`;
+      s += `<text x="${(X(q.px) - 66).toFixed(1)}" y="${(Y((sq + lineAt) / 2) + 8).toFixed(1)}" font-size="26" font-weight="800" text-anchor="end" fill="${C.purple}">+${(sq - lineAt).toFixed(1)} ahead for its size</text>`;
+    }
+    if (sizeAt != null) {
+      const x = X(sizeAt).toFixed(1);
+      s += `<line x1="${x}" y1="${Y(sq).toFixed(1)}" x2="${x}" y2="${B}" stroke="${C.purple}" stroke-width="5" stroke-linecap="round"/>`;
+      s += `<text x="${(X(sizeAt) - 16).toFixed(1)}" y="${(Y(sq) - 40).toFixed(1)}" font-size="26" font-weight="800" text-anchor="end" fill="${C.purple}">${Math.round(sizeAt)} GB expected · ${(sizeAt / q.size).toFixed(1)}× smaller</text>`;
+    }
+  }
+
+  const pts = placeLabels(rows.map((d) => {
+    const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScore(sc)}  ${d.size} GB`;
+    return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
+  }), T, B, WP);
+  pts.forEach((p) => {
+    const d = p.d;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.size} GB · score ${fmtScore(p.sc)}`)}">`;
+    if (front.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
+    if (d === q) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.purple}" stroke-width="5"/>`;
+    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="26" fill="${d.tint}" fill-opacity=".15"/>`;
+    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${d.tint}"/>`;
+    if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
+    s += iconSvg(d, p.iconX, p.ly - 20, 40);
+    s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan> <tspan font-weight="600" fill="${C.soft}">${d.size} GB</tspan></text>`;
+    s += `</g>`;
+  });
+  notes.forEach((t, i) => { s += `<text x="64" y="${B + 130 + 36 * i}" font-size="22" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
   return { W: WP, H, body: frame(WP, H, title, lines) + s, wide: true };
 }
 
@@ -552,7 +644,8 @@ const state = {
 function buildCurrent() {
   switch (state.tab) {
     case 'overview': return overviewFig(state.hidden);
-    case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, state.hidden) : ppFig(state.scope, state.hidden);
+    case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, state.hidden)
+      : state.mode === 'size' ? sizeFig(state.scope, state.hidden) : ppFig(state.scope, state.hidden);
     case 'profiles': return radarFig([...state.prof], state.hidden);
     case 'speed': return speedFig(state.metric, state.hidden);
     case 'ledger': return ledgerFig(state.sort, state.hidden);
@@ -565,7 +658,7 @@ function controlsHTML() {
       return '<span class="hint">Models with all seven scores · tick a model on the left to hide it everywhere</span>';
     case 'explorer':
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
-        `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+        `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     case 'profiles':
       return DATA.map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
         '<button type="button" class="chip plain" data-act="top3">reset to top 3</button>';
@@ -609,13 +702,13 @@ function readHash() {
   if (TABS_KEYS.includes(tab)) state.tab = tab;
   if (tab === 'explorer') {
     if (SCOPES.some(([k]) => k === a)) state.scope = a;
-    if (b === 'p2p' || b === 'score') state.mode = b === 'p2p' ? 'p2p' : 'score';
+    if (['score', 'p2p', 'size'].includes(b)) state.mode = b;
   }
   if (tab === 'speed' && (a === 'min' || a === 'tps')) state.metric = a;
 }
 function writeHash() {
   let h = state.tab;
-  if (state.tab === 'explorer') h += `/${state.scope}/${state.mode === 'p2p' ? 'p2p' : 'score'}`;
+  if (state.tab === 'explorer') h += `/${state.scope}/${state.mode}`;
   if (state.tab === 'speed') h += `/${state.metric}`;
   history.replaceState(null, '', `#${h}`);
 }
@@ -684,6 +777,7 @@ const EXPORTS = [
     { name: `scores-${k}`, build: () => scoresFig(k, NONE) },
     { name: `price-performance-${k}`, build: () => ppFig(k, NONE) },
   ]),
+  { name: 'size-performance-overall', build: () => sizeFig('overall', NONE) },
 ];
 window.renderExport = (name) => {
   const e = EXPORTS.find((x) => x.name === name);

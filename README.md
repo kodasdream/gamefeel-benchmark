@@ -1,6 +1,6 @@
 # The Gamefeel Benchmark
 
-A creativity benchmark for AI models on game development. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel, creativity and reverse-evaluation (RE). The site shows each model's scores against its price per task.
+A creativity benchmark for AI models on game development. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel, creativity and reverse-evaluation (RE). The site shows each model's scores against its price per task, and the open-weight models with a stated size against their size.
 
 **Open the benchmark:** https://kodasdream.github.io/gamefeel-benchmark/
 
@@ -25,6 +25,9 @@ The scores are on the **v1.4 standard**: coding scores are 15 points lower than 
 | `ideas`, `visuals`, `audio` | Creativity scores, out of 100 |
 | `re` | Gamefeel Reverse-Evaluation (RE), out of 100 |
 | `avg` | Average of the seven scores (the six scores and `re`). The overall ranking only uses models with all seven |
+| `open_weights` | `yes` or `no`: whether the model's weights are open. Blank when not known |
+| `size_gb` | Model size in GB, where known. Blank when not known |
+| `size_basis` | The quantization the size is for, where stated |
 
 A blank score means the model has no score for that subcategory.
 
