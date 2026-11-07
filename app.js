@@ -72,6 +72,7 @@ const SCOPES = [
   ['re', 'Gamefeel · RE'],
 ];
 const SCOPE_LABEL = Object.fromEntries(SCOPES);
+const SUBCATEGORY_LIST = SCOPES.slice(1).map(([, l]) => l).join(', ');   // the seven subcategories the overall averages
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
@@ -129,14 +130,15 @@ function capPath(xl, xr, yTop, yBot, r) {
   const f = (n) => n.toFixed(1);
   return `M${f(xl)} ${f(yBot)}V${f(yTop + r)}Q${f(xl)} ${f(yTop)} ${f(xl + r)} ${f(yTop)}H${f(xr - r)}Q${f(xr)} ${f(yTop)} ${f(xr)} ${f(yTop + r)}V${f(yBot)}Z`;
 }
-/* A scale from 0 up to just above max, with about five ticks on round numbers. */
-function niceAxis(max) {
-  const raw = max / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+/* The scale of one chart: 0 up to its largest value, so the tallest column reaches the top. Round
+   gridlines sit well below that top, and the top itself is labelled with the value. */
+function fitAxis(maxVal) {
+  if (!(maxVal > 0)) return { max: 1, ticks: [0, 1] };   // every column is zero: a 0 to 1 scale, no loop
+  const raw = maxVal / 6, mag = Math.pow(10, Math.floor(Math.log10(raw)));
   const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((s) => s >= raw);
-  const top = Math.ceil(max / step - 1e-9) * step;
   const ticks = [];
-  for (let k = 0; k * step <= top + 1e-9; k++) ticks.push(Number((k * step).toFixed(6)));
-  return { max: top, ticks };
+  for (let k = 0; k * step <= maxVal * 0.93 + 1e-9; k++) ticks.push(Number((k * step).toFixed(6)));
+  return { max: maxVal, ticks: [...ticks, maxVal] };
 }
 /* One column per item, left to right in the order given. Items are { d, v, value, tip }.
    The value sits on each cap. Under the axis come the lab icon, effort and price, and the model
@@ -188,12 +190,9 @@ function overviewFig(hidden) {
   ];
   const TH = 150, tw = (WC - 128 - 48) / 3, y0 = TOP + TH + 40;
   const chart = columnChart(rows.map((d) => ({ d, v: d.avg, value: d.avg.toFixed(1), tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })),
-    { top: y0, max: 100, ticks: [0, 25, 50, 75, 100], unit: 'score', empty: 'No model is shown. Tick one on the left.' });
+    { top: y0, ...fitAxis(rows.length ? rows[0].avg : 1), unit: 'score', empty: 'No model is shown. Tick one on the left.' });
   const H = chart.H;
-  let body = frame(WC, H, 'OVERALL · SCORES', [
-    'Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.',
-    'Price per task is under each column. Hide a model in the left list to drop it from every chart.',
-  ]);
+  let body = frame(WC, H, 'OVERALL · SCORES', [`Average of: ${SUBCATEGORY_LIST}`]);
   tiles.forEach(([label, value, sub], i) => {
     const x = 64 + i * (tw + 24), y = TOP;
     body += `<rect x="${x.toFixed(1)}" y="${y}" width="${tw.toFixed(1)}" height="${TH}" rx="26" fill="${C.zebra}"/>`;
@@ -214,10 +213,10 @@ function scoresFig(scope, hidden) {
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
-    ? ['Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.', 'Price per task is under each column.']
-    : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone, out of 100. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
+    ? [`Average of: ${SUBCATEGORY_LIST}`]
+    : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
   const chart = columnChart(rows.map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
-    { top: TOP, max: 100, ticks: [0, 25, 50, 75, 100], unit: 'score', empty: 'No model is shown for this view.' });
+    { top: TOP, ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1), unit: 'score', empty: 'No model is shown for this view.' });
   const H = chart.H;
   let body = frame(WC, H, `${scopeTitle(scope)} · SCORES`, lines) + chart.body;
   if (partial.length) {
@@ -423,7 +422,7 @@ function speedFig(metric, hidden) {
     .sort((a, b) => (tps ? b.tps - a.tps : a.timeMin - b.timeMin));
   const vals = rows.map((d) => (tps ? d.tps : d.timeMin));
   const chart = columnChart(rows.map((d, i) => ({ d, v: vals[i], value: String(vals[i]), tip: `${vals[i]} ${tps ? 'tok/s' : 'min per task'} · ${priceText(d)}` })),
-    { top: TOP, ...niceAxis(Math.max(1, ...vals)), unit: tps ? 'tok/s' : 'min/task', empty: 'No model is shown. Tick one on the left.' });
+    { top: TOP, ...fitAxis(Math.max(1, ...vals)), unit: tps ? 'tok/s' : 'min/task', empty: 'No model is shown. Tick one on the left.' });
   const title = tps ? 'THROUGHPUT · TOKENS PER SECOND' : 'TIME SPENT · MINUTES PER TASK';
   const lines = tps
     ? ['Output speed of each model. Taller column = faster.', 'Context compression (how often a model summarises to fit its window) is in the ledger.']
