@@ -21,5 +21,6 @@ Gemini-4-Argon,High,google,Google DeepMind,4.6,sub,1M,35,1,158,63,55,35,30,65,30
 Ling-3.2-Flash,Max,ant,Ant Group,0.88,api,256K,48,2,77,40,45,30,30,40,32,3.81,31.5,yes,550,Q8
 Nemotron-3.5-Super-VL,Max,nvidia,NVIDIA,0.01,api,1M,9,0,480,9,2,27,25,25,25,11.5,17.8,yes,60,quantization not stated
 Kimi K3.1-Pro,Max,moonshot,Moonshot AI,2.1,api,1M,77,2,73,63,55,10,10,45,27,0.12,30,yes,3000,quantization not stated
-Qwen-4-27B-Early,XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,45,14.88,47,yes,35,quantization not stated
+Qwen-4-27B-Early,XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,14.88,44.6,yes,35,quantization not stated
 Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,23.33,45,no,,
+Qwen-4-Flash-Early,Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,64,31,19.95,49.9,,,
