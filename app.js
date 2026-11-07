@@ -81,7 +81,7 @@ const WC = 2600;                   // bar charts: 24 columns side by side, wide 
 const WL = 2480;
 const WP = 3400;                 // price-to-performance canvas: 2:1 (18:9), wider than the rest for room
 const TOP = 280;                   // first content line, below the title block
-const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb' };
+const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb', purple: '#9c27b0' };
 const NONE = new Set();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -237,6 +237,28 @@ function paretoFront(rows, scope) {
   }
   return front;
 }
+/* The frontier line itself, as drawn (straight segments in log price): its score at a given price,
+   and the price at which it reaches a given score. Null where the line does not reach. */
+function lineScoreAt(front, scope, px) {
+  for (let i = 0; i + 1 < front.length; i++) {
+    const a = front[i], b = front[i + 1];
+    if (px >= a.px && px <= b.px) {
+      const t = Math.log(px / a.px) / Math.log(b.px / a.px);
+      return scoreOf(a, scope) + t * (scoreOf(b, scope) - scoreOf(a, scope));
+    }
+  }
+  return null;
+}
+function linePriceAt(front, scope, sc) {
+  for (let i = 0; i + 1 < front.length; i++) {
+    const a = front[i], b = front[i + 1], sa = scoreOf(a, scope), sb = scoreOf(b, scope);
+    if (sc >= sa && sc <= sb) {
+      const t = (sc - sa) / (sb - sa);
+      return Math.exp(Math.log(a.px) + t * Math.log(b.px / a.px));
+    }
+  }
+  return null;
+}
 /* Real glyph widths (in figure units) from the browser, so label boxes match the drawn text. */
 const _measure = document.createElement('canvas').getContext('2d');
 const textW = (t, size, weight) => {
@@ -289,6 +311,7 @@ function ppFig(scope, hidden) {
     'Price per task against score, log scale. Up and to the left is cheaper and higher.',
     'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
   ];
+  if (scope === 're') lines.push('Qwen-4-27B-Early is left off the blue line, so the purple lines can measure it against that line.');
   const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null);
   if (!rows.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No model is shown for this view.') };
 
@@ -333,9 +356,29 @@ function ppFig(scope, hidden) {
   s += `<text x="34" y="${(T + B) / 2}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}" transform="rotate(-90 34 ${(T + B) / 2})">score (out of 100)</text>`;
 
   // pareto frontier: straight segments between the non-dominated points
-  const front = paretoFront(rows, scope);
+  // GameFeel RE: Qwen-4-27B-Early is left off the line, so the purple lines can measure it against that line
+  const offLine = scope === 're' ? 'Qwen-4-27B-Early' : null;
+  const front = paretoFront(rows.filter((d) => d.model !== offLine), scope);
   if (front.length > 1) {
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
+  }
+  // purple (GameFeel RE): the left line is how far Qwen-4-27B-Early sits above the blue line at its own price;
+  // the right line is the price the blue line expects for its score, so the gap between the two is how much cheaper it is
+  const q = offLine ? rows.find((d) => d.model === offLine) : null;
+  if (q) {
+    const sq = scoreOf(q, scope), lineAt = lineScoreAt(front, scope, q.px), priceAt = linePriceAt(front, scope, sq);
+    // the dot (radius 30) would hide a gap this small, so the left line sits just beside the dot, at the same heights
+    if (lineAt != null) {
+      const x = (X(q.px) - 46).toFixed(1);
+      s += `<line x1="${x}" y1="${Y(lineAt).toFixed(1)}" x2="${x}" y2="${Y(sq).toFixed(1)}" stroke="${C.purple}" stroke-width="5" stroke-linecap="round"/>`;
+      s += `<text x="${(X(q.px) - 66).toFixed(1)}" y="${(Y((sq + lineAt) / 2) + 8).toFixed(1)}" font-size="26" font-weight="800" text-anchor="end" fill="${C.purple}">+${(sq - lineAt).toFixed(1)} ahead for its cost</text>`;
+    }
+    if (priceAt != null) {
+      const x = X(priceAt).toFixed(1);
+      s += `<line x1="${x}" y1="${Y(sq).toFixed(1)}" x2="${x}" y2="${B}" stroke="${C.purple}" stroke-width="5" stroke-linecap="round"/>`;
+      s += `<text x="${(X(priceAt) - 16).toFixed(1)}" y="${(Y(sq) - 40).toFixed(1)}" font-size="26" font-weight="800" text-anchor="end" fill="${C.purple}">$${priceAt.toFixed(2)} expected · ${(priceAt / q.price).toFixed(1)}× cheaper</text>`;
+    }
+    s += `<text x="64" y="${B + 130}" font-size="22" font-weight="600" fill="${C.soft}">Purple, left: how far Qwen-4-27B-Early sits above the blue line at its price. Purple, right: the price the blue line expects for its score. The gap between the two is how much cheaper it is.</text>`;
   }
   // same model at several effort levels: a dotted line joins them
   const fam = {};
