@@ -189,7 +189,8 @@ function overviewFig(hidden) {
     ['FASTEST OUTPUT', fast ? `${fast.tps} tok/s` : '—', fast ? `${fast.model} · ${fast.effort}` : 'no model shown'],
   ];
   const TH = 150, tw = (WC - 128 - 48) / 3, y0 = TOP + TH + 40;
-  const chart = columnChart(rows.map((d) => ({ d, v: d.avg, value: d.avg.toFixed(1), tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })),
+  // best on the right: the columns run from the lowest average on the left to the best on the right
+  const chart = columnChart(rows.slice().reverse().map((d) => ({ d, v: d.avg, value: d.avg.toFixed(1), tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })),
     { top: y0, ...fitAxis(rows.length ? rows[0].avg : 1), unit: 'score', empty: 'No model is shown. Tick one on the left.' });
   const H = chart.H;
   let body = frame(WC, H, 'OVERALL · SCORES', [`Average of: ${SUBCATEGORY_LIST}`]);
@@ -215,7 +216,8 @@ function scoresFig(scope, hidden) {
   const lines = scope === 'overall'
     ? [`Average of: ${SUBCATEGORY_LIST}`]
     : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
-  const chart = columnChart(rows.map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
+  // best on the right: the columns run from the lowest score on the left to the best on the right
+  const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
     { top: TOP, ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1), unit: 'score', empty: 'No model is shown for this view.' });
   const H = chart.H;
   let body = frame(WC, H, `${scopeTitle(scope)} · SCORES`, lines) + chart.body;
