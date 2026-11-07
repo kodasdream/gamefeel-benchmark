@@ -76,6 +76,7 @@ const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', '
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
 const W = 1600;                    // figure width (ledger uses WL)
+const WC = 2600;                   // bar charts: 24 columns side by side, wide enough for chunky bars
 const WL = 2480;
 const WP = 3400;                 // price-to-performance canvas: 2:1 (18:9), wider than the rest for room
 const TOP = 280;                   // first content line, below the title block
@@ -121,23 +122,55 @@ function frame(w, h, title, lines) {
 function emptyNote(w, y, text) {
   return `<text x="${w / 2}" y="${y}" font-size="26" font-weight="700" text-anchor="middle" fill="${C.faint}">${esc(text)}</text>`;
 }
-/* One ranked bar per row: rank, icon, name + effort, lab and price underneath, bar, value on the right. */
-function barRows(items, w, y0, rowH) {
-  const TX = 800, TW = 500, RX = w - 64;
+/* ---------- vertical columns: overview, scores and speed ---------- */
+const COL = { axis: 120, label: 330, plot: 620 };   // left gutter for the scale, room under the axis for names, plot height
+/* A column: square at the baseline, rounded at the data end (its top). */
+function capPath(xl, xr, yTop, yBot, r) {
+  const f = (n) => n.toFixed(1);
+  return `M${f(xl)} ${f(yBot)}V${f(yTop + r)}Q${f(xl)} ${f(yTop)} ${f(xl + r)} ${f(yTop)}H${f(xr - r)}Q${f(xr)} ${f(yTop)} ${f(xr)} ${f(yTop + r)}V${f(yBot)}Z`;
+}
+/* A scale from 0 up to just above max, with about five ticks on round numbers. */
+function niceAxis(max) {
+  const raw = max / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((s) => s >= raw);
+  const top = Math.ceil(max / step - 1e-9) * step;
+  const ticks = [];
+  for (let k = 0; k * step <= top + 1e-9; k++) ticks.push(Number((k * step).toFixed(6)));
+  return { max: top, ticks };
+}
+/* One column per item, left to right in the order given. Items are { d, v, value, tip }.
+   The value sits on each cap. Under the axis come the lab icon, effort and price, and the model
+   name hangs diagonally below. Fewer models give wider columns. Returns the figure height and the
+   body; the caller adds the frame. */
+function columnChart(items, o) {
+  if (!items.length) return { H: o.top + 700, body: emptyNote(WC, o.top + 200, o.empty) };
+  const X0 = 64 + COL.axis, X1 = WC - 64, PW = X1 - X0;
+  const yT = o.top + 70, yB = yT + COL.plot, H = yB + COL.label + 150;
+  const Y = (v) => yB - (v / o.max) * COL.plot;
+  const pitch = Math.min(PW / items.length, 220), bw = Math.min(pitch * 0.74, 160);
+  const x0 = X0 + (PW - pitch * items.length) / 2;
   let s = '';
+  o.ticks.forEach((t) => {
+    const y = Y(t).toFixed(1);
+    s += `<line x1="${X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="${t === 0 ? C.ink : C.track}" stroke-opacity="${t === 0 ? 0.25 : 1}" stroke-width="2"/>`;
+    s += `<text x="${X0 - 18}" y="${(Y(t) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${t}</text>`;
+  });
+  s += `<text x="${X0 - 18}" y="${yT - 30}" font-size="20" font-weight="700" text-anchor="end" fill="${C.faint}">${esc(o.unit)}</text>`;
   items.forEach((it, i) => {
-    const d = it.d, cy = y0 + i * rowH + rowH / 2;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${it.tip}`)}">`;
-    s += `<text x="64" y="${cy + 9}" font-size="24" font-weight="700" fill="${C.faint}">${i + 1}</text>`;
-    s += iconSvg(d, 110, cy - 20, 40);
-    s += `<text x="170" y="${cy - 4}" font-size="28" font-weight="800" fill="${C.ink}">${esc(d.model)}<tspan font-size="20" font-weight="700" fill="${C.soft}">  ${esc(d.effort)}</tspan></text>`;
-    s += `<text x="170" y="${cy + 30}" font-size="20" font-weight="600" fill="${C.soft}">${esc(d.lab)} · ${esc(priceText(d))}</text>`;
-    s += `<rect x="${TX}" y="${cy - 12}" width="${TW}" height="24" rx="12" fill="${C.track}"/>`;
-    s += `<rect x="${TX}" y="${cy - 12}" width="${Math.max(8, TW * it.frac).toFixed(1)}" height="24" rx="12" fill="${d.tint}"/>`;
-    s += `<text x="${RX}" y="${cy + 13}" font-size="38" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(it.value)}<tspan font-size="19" font-weight="700" fill="${C.faint}">  ${esc(it.unit)}</tspan></text>`;
+    const d = it.d, cx = x0 + pitch * (i + 0.5);
+    const h = Math.max(6, (it.v / o.max) * COL.plot), top = yB - h;
+    const nx = Math.max(cx + 12, 24 + textW(d.model, 23, 800) * Math.SQRT1_2);   // a long diagonal name stays inside the figure
+    s += `<g class="col" data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.lab} · ${it.tip}`)}">`;
+    s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${yT - 60}" width="${pitch.toFixed(1)}" height="${COL.plot + COL.label + 60}" fill="transparent"/>`;
+    s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="30" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
+    s += iconSvg(d, (cx - 20).toFixed(1), yB + 20, 40);
+    s += `<text x="${cx.toFixed(1)}" y="${yB + 92}" font-size="20" font-weight="700" text-anchor="middle" fill="${C.soft}">${esc(d.effort)}</text>`;
+    s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="20" font-weight="600" text-anchor="middle" fill="${C.soft}">${d.free ? 'free' : `$${d.price.toFixed(2)}`}</text>`;
+    s += `<text transform="translate(${nx.toFixed(1)} ${yB + 150}) rotate(-45)" font-size="23" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(d.model)}</text>`;
     s += `</g>`;
   });
-  return s;
+  return { H, body: s };
 }
 
 /* ---------- figure: overview ---------- */
@@ -153,11 +186,13 @@ function overviewFig(hidden) {
     ['CHEAPEST PAID TASK', paid ? `$${paid.price.toFixed(2)}` : '—', paid ? `${paid.model} · ${paid.effort}` : 'no paid model shown'],
     ['FASTEST OUTPUT', fast ? `${fast.tps} tok/s` : '—', fast ? `${fast.model} · ${fast.effort}` : 'no model shown'],
   ];
-  const TH = 150, tw = (W - 128 - 48) / 3, rowH = 88, y0 = TOP + TH + 40;
-  const H = y0 + Math.max(rows.length, 1) * rowH + 150;
-  let body = frame(W, H, 'OVERALL · SCORES', [
+  const TH = 150, tw = (WC - 128 - 48) / 3, y0 = TOP + TH + 40;
+  const chart = columnChart(rows.map((d) => ({ d, v: d.avg, value: d.avg.toFixed(1), tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })),
+    { top: y0, max: 100, ticks: [0, 25, 50, 75, 100], unit: 'score', empty: 'No model is shown. Tick one on the left.' });
+  const H = chart.H;
+  let body = frame(WC, H, 'OVERALL · SCORES', [
     'Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.',
-    'Price per task is under each name. Hide a model in the left list to drop it from every chart.',
+    'Price per task is under each column. Hide a model in the left list to drop it from every chart.',
   ]);
   tiles.forEach(([label, value, sub], i) => {
     const x = 64 + i * (tw + 24), y = TOP;
@@ -166,34 +201,29 @@ function overviewFig(hidden) {
     body += `<text x="${(x + 30).toFixed(1)}" y="${y + 102}" font-size="58" font-weight="800" fill="${C.ink}">${esc(value)}</text>`;
     body += `<text x="${(x + 30).toFixed(1)}" y="${y + 134}" font-size="20" font-weight="600" fill="${C.soft}">${esc(sub)}</text>`;
   });
-  if (rows.length) {
-    body += barRows(rows.map((d) => ({ d, frac: d.avg / 100, value: d.avg.toFixed(1), unit: '/ 100', tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })), W, y0, rowH);
-  } else {
-    body += emptyNote(W, y0 + 80, 'No model is shown. Tick one on the left.');
-  }
+  body += chart.body;
   if (partial.length) {
-    body += `<text x="64" y="${H - 90}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}</text>`;
+    body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}</text>`;
   }
-  return { W, H, body };
+  return { W: WC, H, body, wide: true };
 }
 
-/* ---------- figure: scores bars (overall or one subcategory) ---------- */
+/* ---------- figure: scores columns (overall or one subcategory) ---------- */
 function scoresFig(scope, hidden) {
   const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
-  const rowH = 88, H = TOP + Math.max(rows.length, 1) * rowH + 170;
   const lines = scope === 'overall'
-    ? ['Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.', 'Price per task is under each name.']
-    : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone, out of 100. Price per task is under each name.`, 'Only models with a score in this subcategory are listed.'];
-  let body = frame(W, H, `${scopeTitle(scope)} · SCORES`, lines);
-  body += rows.length
-    ? barRows(rows.map((d) => { const v = scoreOf(d, scope); return { d, frac: v / 100, value: fmtScore(v), unit: '/ 100', tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }), W, TOP, rowH)
-    : emptyNote(W, TOP + 120, 'No model is shown for this view.');
+    ? ['Average of the seven scores (six scores and Gamefeel RE), out of 100. Only models with all seven are ranked.', 'Price per task is under each column.']
+    : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone, out of 100. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
+  const chart = columnChart(rows.map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
+    { top: TOP, max: 100, ticks: [0, 25, 50, 75, 100], unit: 'score', empty: 'No model is shown for this view.' });
+  const H = chart.H;
+  let body = frame(WC, H, `${scopeTitle(scope)} · SCORES`, lines) + chart.body;
   if (partial.length) {
-    body += `<text x="64" y="${H - 90}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}. They appear in each subcategory they have a score in.</text>`;
+    body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}. They appear in each subcategory they have a score in.</text>`;
   }
-  return { W, H, body };
+  return { W: WC, H, body, wide: true };
 }
 
 /* ---------- figure: price to performance (log price vs score) ---------- */
@@ -391,17 +421,14 @@ function speedFig(metric, hidden) {
   const tps = metric === 'tps';
   const rows = DATA.filter((d) => !hidden.has(d.id))
     .sort((a, b) => (tps ? b.tps - a.tps : a.timeMin - b.timeMin));
-  const max = Math.max(1, ...rows.map((d) => (tps ? d.tps : d.timeMin)));
-  const items = rows.map((d) => {
-    const v = tps ? d.tps : d.timeMin;
-    return { d, frac: v / max, value: String(v), unit: tps ? 'tok/s' : 'min/task', tip: `${v} ${tps ? 'tok/s' : 'min per task'} · ${priceText(d)}` };
-  });
-  const rowH = 88, H = TOP + Math.max(rows.length, 1) * rowH + 170;
+  const vals = rows.map((d) => (tps ? d.tps : d.timeMin));
+  const chart = columnChart(rows.map((d, i) => ({ d, v: vals[i], value: String(vals[i]), tip: `${vals[i]} ${tps ? 'tok/s' : 'min per task'} · ${priceText(d)}` })),
+    { top: TOP, ...niceAxis(Math.max(1, ...vals)), unit: tps ? 'tok/s' : 'min/task', empty: 'No model is shown. Tick one on the left.' });
   const title = tps ? 'THROUGHPUT · TOKENS PER SECOND' : 'TIME SPENT · MINUTES PER TASK';
   const lines = tps
-    ? ['Output speed of each model. Longer bar = faster.', 'Context compression (how often a model summarises to fit its window) is in the ledger.']
-    : ['Minutes each model spent per task. Shorter bar = quicker.', 'Context compression (how often a model summarises to fit its window) is in the ledger.'];
-  return { W, H, body: frame(W, H, title, lines) + barRows(items, W, TOP, rowH) };
+    ? ['Output speed of each model. Taller column = faster.', 'Context compression (how often a model summarises to fit its window) is in the ledger.']
+    : ['Minutes each model spent per task. Shorter column = quicker.', 'Context compression (how often a model summarises to fit its window) is in the ledger.'];
+  return { W: WC, H: chart.H, body: frame(WC, chart.H, title, lines) + chart.body, wide: true };
 }
 
 /* ---------- figure: ledger (every column, sortable) ---------- */

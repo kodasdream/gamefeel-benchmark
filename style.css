@@ -69,6 +69,8 @@ aside.side { border-right: 1px solid var(--line); background: rgba(255,255,255,.
 .fig.wide { width: max(100%, 2000px); }
 .fig svg { display: block; width: 100%; height: auto; }
 .fig text { font-family: 'Ubuntu Sans', 'Segoe UI', system-ui, sans-serif; }
+#stage .col > path { transition: filter .12s; }
+#stage .col:hover > path { filter: brightness(1.08); }
 .tip {
   position: fixed; pointer-events: none; background: var(--ink); color: #fff; padding: 9px 14px;
   border-radius: 12px; font-size: 15px; font-weight: 600; opacity: 0; transition: opacity .08s; z-index: 50; max-width: 460px;
