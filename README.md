@@ -26,7 +26,7 @@ The scores are on the **v1.4 standard**: coding scores are 15 points lower than 
 | `re` | Gamefeel Reverse-Evaluation (RE), out of 100 |
 | `avg` | Average of the seven scores (the six scores and `re`). The overall ranking only uses models with all seven |
 | `open_weights` | `yes` or `no`: whether the model's weights are open. Blank when not known |
-| `size_gb` | Model size in GB, where known. Blank when not known |
+| `size_gb` | Model size in GB, for open-weight models where known. Blank when not known |
 | `size_basis` | The quantization the size is for, where stated |
 
 A blank score means the model has no score for that subcategory.

@@ -422,6 +422,18 @@ function ppFig(scope, hidden, highlight = false) {
   return { W: WP, H, body: frame(WP, H, title, lines) + s, wide: true };
 }
 
+// splits a footnote into lines no wider than maxW, measured in the figure's own units
+function wrapText(t, size, weight, maxW) {
+  const out = [];
+  let cur = '';
+  for (const word of t.split(' ')) {
+    const next = cur ? `${cur} ${word}` : word;
+    if (cur && textW(next, size, weight) > maxW) { out.push(cur); cur = word; } else cur = next;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 /* ---------- figure: size to performance (log model size vs score; open-weight models with a size only) ---------- */
 function sizeFig(scope, hidden, highlight = false) {
   const title = `${scopeTitle(scope)} · SIZE TO PERFORMANCE${highlight ? ` · ${HIGHLIGHT.toUpperCase()} HIGHLIGHT` : ''}`;
@@ -447,7 +459,8 @@ function sizeFig(scope, hidden, highlight = false) {
   if (q && sizeAt == null) notes.push(`The blue line does not reach a score of ${fmtScore(sq)}, so the size ${q.model} would be expected at is not drawn.`);
   if (lineAt != null || sizeAt != null) notes.push(`Purple: how far ${HIGHLIGHT} sits above the blue line at its size, and the line across at its score, from its size to the size the line expects.`);
 
-  const B = 1530, H = B + 170 + 36 * notes.length, T = TOP + 30, L = 170, R = WP - 80;
+  const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
+  const B = 1530, H = B + 170 + 36 * noteLines.length, T = TOP + 30, L = 170, R = WP - 80;
   const xs = rows.map((d) => d.size), ys = rows.map((d) => scoreOf(d, scope));
   const x0 = Math.min(...xs) / 1.8, x1 = Math.max(...xs) * 1.8;
   // score axis fitted to the data in steps of 5, as in the price chart
@@ -512,7 +525,7 @@ function sizeFig(scope, hidden, highlight = false) {
     s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan> <tspan font-weight="600" fill="${C.soft}">${d.size} GB</tspan></text>`;
     s += `</g>`;
   });
-  notes.forEach((t, i) => { s += `<text x="64" y="${B + 130 + 36 * i}" font-size="22" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
+  noteLines.forEach((t, i) => { s += `<text x="64" y="${B + 130 + 36 * i}" font-size="22" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
   return { W: WP, H, body: frame(WP, H, title, lines) + s, wide: true };
 }
 
