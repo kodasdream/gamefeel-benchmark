@@ -53,12 +53,13 @@ async function loadData() {
   const rows = parseCSV(csv).map((r) => {
     const lab = labs[r.lab_key] || labs.unknown;
     return {
-      id: `${r.model} · ${r.effort}`, model: r.model, effort: r.effort,
+      id: [r.model, r.effort].filter(Boolean).join(' · '), model: r.model, effort: r.effort,
       lab: lab.lab, tint: lab.colour, icon: lab.icon,
-      price: Number(r.price_per_task_usd || 0), basis: r.billing, context: r.context,
-      timeMin: Number(r.minutes_per_task || 0), compress: Number(r.context_compression_per_task || 0),
-      tps: Number(r.tokens_per_second || 0),
+      price: num(r.price_per_task_usd), basis: r.billing, context: r.context,
+      timeMin: num(r.minutes_per_task), compress: num(r.context_compression_per_task),
+      tps: num(r.tokens_per_second),
       openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
+      reNote: r.re_test || '',   // set only on a result from the semi-private subset of the RE test
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k])])),
     };
   });
@@ -97,16 +98,23 @@ const standardTag = () => (META.standard ? ` · ${esc(META.standard).toUpperCase
 function deriveFields() {
   DATA.forEach((d) => {
     d.complete = SCORE_KEYS.every((k) => d[k] != null);
-    const have = SCORE_KEYS.map((k) => d[k]).filter((v) => v != null);
-    d.avg = have.length ? Math.round((have.reduce((a, b) => a + b, 0) / have.length) * 10) / 10 : null;
-    d.free = !(d.price > 0);
-    d.px = Math.max(d.price, PRICE_FLOOR);
-    d.value = d.avg != null && !d.free ? Math.round((d.avg / d.price) * 10) / 10 : null;
+    // the average is only for a model with all seven scores: a partial record has none
+    d.avg = d.complete ? Math.round((SCORE_KEYS.reduce((a, k) => a + d[k], 0) / SCORE_KEYS.length) * 10) / 10 : null;
+    d.free = d.price === 0;
+    d.px = d.price == null ? null : Math.max(d.price, PRICE_FLOOR);   // no price: not drawn on a price chart
+    d.value = d.avg != null && d.price > 0 ? Math.round((d.avg / d.price) * 10) / 10 : null;
   });
 }
 // Overall only ranks models with all seven scores (six scores plus Gamefeel RE). Subcategories rank any model with that score.
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null) : (d[scope] ?? null));
-const priceText = (d) => (d.free ? 'free' : `$${d.price.toFixed(2)}/task · ${BASIS_WORD[d.basis] || d.basis}`);
+const priceText = (d) => (d.price == null ? 'no price given' : d.free ? 'free' : `$${d.price.toFixed(2)}/task · ${BASIS_WORD[d.basis] || d.basis}`);
+const priceLabel = (d) => (d.price == null ? 'no price' : d.free ? 'free' : `$${d.price.toFixed(2)}`);   // under a column
+// A result from the semi-private subset of the RE test has a note (workbook column V) and an asterisk.
+const shortName = (d) => d.model + (d.reNote ? '*' : '');
+const modelEffort = (d) => [d.model, d.effort].filter(Boolean).join(' · ');
+const namesOf = (rows) => [...new Set(rows.map((d) => d.model))].join(', ');
+const RE_FULL = 'Every other result is the full RE test, over 8,000 tasks.';
+const reFootnote = (rows) => `* ${namesOf(rows)}: ${[...new Set(rows.map((d) => d.reNote))].join('; ')}. ${RE_FULL}`;
 const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
 const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
 
@@ -167,15 +175,15 @@ function columnChart(items, o) {
   items.forEach((it, i) => {
     const d = it.d, cx = x0 + pitch * (i + 0.5);
     const h = Math.max(6, (it.v / o.max) * COL.plot), top = yB - h;
-    const nx = Math.max(cx + 12, 24 + textW(d.model, 23, 800) * Math.SQRT1_2);   // a long diagonal name stays inside the figure
-    s += `<g class="col" data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.lab} · ${it.tip}`)}">`;
+    const nx = Math.max(cx + 12, 24 + textW(shortName(d), 23, 800) * Math.SQRT1_2);   // a long diagonal name stays inside the figure
+    s += `<g class="col" data-m="${esc(d.id)}" data-tip="${esc([shortName(d), d.effort, d.lab, it.tip].filter(Boolean).join(' · '))}">`;
     s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${yT - 60}" width="${pitch.toFixed(1)}" height="${COL.plot + COL.label + 60}" fill="transparent"/>`;
     s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
     s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="30" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
     s += iconSvg(d, (cx - 20).toFixed(1), yB + 20, 40);
     s += `<text x="${cx.toFixed(1)}" y="${yB + 92}" font-size="20" font-weight="700" text-anchor="middle" fill="${C.soft}">${esc(d.effort)}</text>`;
-    s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="20" font-weight="600" text-anchor="middle" fill="${C.soft}">${d.free ? 'free' : `$${d.price.toFixed(2)}`}</text>`;
-    s += `<text transform="translate(${nx.toFixed(1)} ${yB + 150}) rotate(-45)" font-size="23" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(d.model)}</text>`;
+    s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="20" font-weight="600" text-anchor="middle" fill="${C.soft}">${priceLabel(d)}</text>`;
+    s += `<text transform="translate(${nx.toFixed(1)} ${yB + 150}) rotate(-45)" font-size="23" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(shortName(d))}</text>`;
     s += `</g>`;
   });
   return { H, body: s };
@@ -187,8 +195,8 @@ function overviewFig(hidden) {
   const rows = vis.filter((d) => d.complete).sort((a, b) => b.avg - a.avg);
   const partial = vis.filter((d) => !d.complete);
   const best = rows[0];
-  const paid = rows.filter((d) => !d.free).sort((a, b) => a.price - b.price)[0];
-  const fast = [...vis].sort((a, b) => b.tps - a.tps)[0];
+  const paid = rows.filter((d) => d.price > 0).sort((a, b) => a.price - b.price)[0];
+  const fast = vis.filter((d) => d.tps != null).sort((a, b) => b.tps - a.tps)[0];
   const tiles = [
     ['BEST OVERALL', best ? best.avg.toFixed(1) : '—', best ? `${best.model} · ${best.effort}` : 'no model shown'],
     ['CHEAPEST PAID TASK', paid ? `$${paid.price.toFixed(2)}` : '—', paid ? `${paid.model} · ${paid.effort}` : 'no paid model shown'],
@@ -230,6 +238,8 @@ function scoresFig(scope, hidden) {
   if (partial.length) {
     body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}. They appear in each subcategory they have a score in.</text>`;
   }
+  const subset = rows.filter((d) => d.reNote);
+  if (subset.length) body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">${esc(reFootnote(subset))}</text>`;
   return { W: WC, H, body, wide: true };
 }
 
@@ -384,7 +394,8 @@ function ppFig(scope, hidden, highlight = false) {
     'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
   ];
   if (hl) lines.push(`${HIGHLIGHT_NAMES} are left off the blue line, so the purple lines can measure each against that line.`);
-  const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null);
+  const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price != null);
+  const unpriced = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price == null);
   if (!rows.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No model is shown for this view.') };
 
   // the highlight figure takes the Qwen-4 models off the blue line so the purple marks can measure them; every other chart includes them like any model
@@ -397,6 +408,7 @@ function ppFig(scope, hidden, highlight = false) {
     if (m.priceAt == null) notes.push(`The blue line does not reach a score of ${fmtScore(m.sq)}, so the price ${m.q.model} would be expected at is not drawn.`);
   }
   if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above the blue line at its price (the bracket), and the line across at its score, from its price to the price the blue line expects. The length of that line is how much cheaper it is.${styleNote(measures)}`);
+  if (unpriced.length) notes.push(`Not shown, no price given: ${namesOf(unpriced)}.`);
   const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
   const B = 1530, H = 1700 + 36 * Math.max(0, noteLines.length - 1);
   const ys = rows.map((d) => scoreOf(d, scope));
@@ -636,16 +648,20 @@ function radarFig(ids, hidden) {
 /* ---------- figure: speed ---------- */
 function speedFig(metric, hidden) {
   const tps = metric === 'tps';
-  const rows = DATA.filter((d) => !hidden.has(d.id))
+  const value = (d) => (tps ? d.tps : d.timeMin);
+  const rows = DATA.filter((d) => !hidden.has(d.id) && value(d) != null)
     .sort((a, b) => (tps ? b.tps - a.tps : a.timeMin - b.timeMin));
-  const vals = rows.map((d) => (tps ? d.tps : d.timeMin));
+  const vals = rows.map((d) => value(d));
+  const unmeasured = DATA.filter((d) => !hidden.has(d.id) && value(d) == null);
   const chart = columnChart(rows.map((d, i) => ({ d, v: vals[i], value: String(vals[i]), tip: `${vals[i]} ${tps ? 'tok/s' : 'min per task'} · ${priceText(d)}` })),
     { top: TOP, ...fitAxis(Math.max(1, ...vals)), unit: tps ? 'tok/s' : 'min/task', empty: 'No model is shown. Tick one on the left.' });
   const title = tps ? 'THROUGHPUT · TOKENS PER SECOND' : 'TIME SPENT · MINUTES PER TASK';
   const lines = tps
     ? ['Output speed of each model. Taller column = faster.', 'Context compression (how often a model summarises to fit its window) is in the ledger.']
     : ['Minutes each model spent per task. Shorter column = quicker.', 'Context compression (how often a model summarises to fit its window) is in the ledger.'];
-  return { W: WC, H: chart.H, body: frame(WC, chart.H, title, lines) + chart.body, wide: true };
+  let body = frame(WC, chart.H, title, lines) + chart.body;
+  if (unmeasured.length) body += `<text x="64" y="${chart.H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not shown, no ${tps ? 'tokens per second' : 'minutes per task'} given: ${namesOf(unmeasured)}.</text>`;
+  return { W: WC, H: chart.H, body, wide: true };
 }
 
 /* ---------- figure: ledger (every column, sortable) ---------- */
@@ -666,15 +682,15 @@ function sortRows(rows, sort) {
 }
 function cellText(d, k) {
   switch (k) {
-    case 'effort': return d.effort;
-    case 'price': return d.free ? 'free' : `$${d.price.toFixed(2)}`;
-    case 'basis': return BASIS_WORD[d.basis] || d.basis;
-    case 'context': return d.context;
-    case 'timeMin': return String(d.timeMin);
-    case 'compress': return String(d.compress);
-    case 'tps': return String(d.tps);
+    case 'effort': return d.effort || '—';
+    case 'price': return d.price == null ? '—' : d.free ? 'free' : `$${d.price.toFixed(2)}`;
+    case 'basis': return BASIS_WORD[d.basis] || d.basis || '—';
+    case 'context': return d.context || '—';
+    case 'timeMin': return d.timeMin == null ? '—' : String(d.timeMin);
+    case 'compress': return d.compress == null ? '—' : String(d.compress);
+    case 'tps': return d.tps == null ? '—' : String(d.tps);
     case 're': return d.re == null ? '—' : d.re.toFixed(1);
-    case 'avg': return d.avg == null ? '—' : d.avg.toFixed(1) + (d.complete ? '' : '*');
+    case 'avg': return d.avg == null ? '—' : d.avg.toFixed(1);
     case 'value': return d.value == null ? '—' : d.value.toFixed(1);
     default: return d[k] == null ? '—' : String(d[k]);
   }
@@ -684,7 +700,10 @@ function ledgerFig(sort, hidden) {
   const total = LEDGER.reduce((a, c) => a + c[2], 0), left = (WL - total) / 2;
   const top = TOP + 40, rowH = 74;
   const H = top + Math.max(rows.length, 1) * rowH + 150;
-  const lines = ['Click a column heading to sort. PTS/$ = average score per dollar of task price.', '* = partial record, not in overall. Free models have no price, so no PTS/$. RE = Gamefeel Reverse-Evaluation.'];
+  const subset = rows.filter((d) => d.reNote);
+  const lines = ['Click a column heading to sort. PTS/$ = average score per dollar of task price. A dash means no value for that column.',
+    'RE = Gamefeel Reverse-Evaluation. A partial record (not all seven scores) has no average and is not in overall.'];
+  if (subset.length) lines.push(reFootnote(subset));
   let s = '', x = left;
   LEDGER.forEach(([k, label, w, anchor]) => {
     const on = sort.key === k, arrow = on ? (sort.dir < 0 ? ' ▾' : ' ▴') : '';
@@ -695,13 +714,13 @@ function ledgerFig(sort, hidden) {
   });
   rows.forEach((d, i) => {
     const y = top + i * rowH, ty = y + rowH / 2 + 8;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)}`)}">`;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · ${priceText(d)}`)}">`;
     if (i % 2 === 0) s += `<rect x="${left - 16}" y="${y}" width="${total + 32}" height="${rowH - 4}" rx="12" fill="${C.zebra}"/>`;
     x = left;
     LEDGER.forEach(([k, , w, anchor]) => {
       if (k === 'model') {
         s += iconSvg(d, x + 10, y + 10, 32);
-        s += `<text x="${x + 52}" y="${ty}" font-size="25" font-weight="800" fill="${C.ink}">${esc(d.model)}</text>`;
+        s += `<text x="${x + 52}" y="${ty}" font-size="25" font-weight="800" fill="${C.ink}">${esc(shortName(d))}</text>`;
       } else {
         const tx = anchor === 'end' ? x + w - 14 : x + 14, avg = k === 'avg';
         s += `<text x="${tx}" y="${ty}" font-size="24" font-weight="${avg ? 800 : 600}" text-anchor="${anchor}" fill="${avg ? C.ink : C.soft}">${esc(cellText(d, k))}</text>`;
@@ -741,7 +760,7 @@ function controlsHTML() {
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
         `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     case 'profiles':
-      return DATA.map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
+      return DATA.filter((d) => d.complete).map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
         '<button type="button" class="chip plain" data-act="top3">reset to top 3</button>';
     case 'speed':
       return `<div class="seg"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}">Minutes per task</button></div>`;
@@ -763,7 +782,7 @@ function renderSidebar() {
     const on = !state.hidden.has(d.id);
     return `<label class="mrow ${on ? '' : 'off'}" data-row="${esc(d.id)}">` +
       `<input type="checkbox" data-hide="${esc(d.id)}" ${on ? 'checked' : ''} />${iconHTML(d)}` +
-      `<span class="mtxt"><b>${esc(d.model)}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
+      `<span class="mtxt"><b>${esc(shortName(d))}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
       `<span class="mavg">${d.complete ? d.avg.toFixed(1) : 'partial'}</span></label>`;
   }).join('') || '<div class="side-foot">No model matches that filter.</div>';
   $('#shown').textContent = `${DATA.length - state.hidden.size} of ${DATA.length} shown`;

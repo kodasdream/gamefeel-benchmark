@@ -66,20 +66,21 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 |--------------------------------|---------|
 | `model`, `effort`              | The model and its effort setting |
 | `lab_key`, `lab`               | The lab that made the model |
-| `price_per_task_usd`           | Price per task in US dollars. `0` means free |
+| `price_per_task_usd`           | Price per task in US dollars. `0` means free. Blank when the price is not known |
 | `billing`                      | `sub` (subscription), `api` (pay per token) or `free` |
 | `context`                      | Context window |
-| `minutes_per_task`             | Time spent per task, in minutes |
+| `minutes_per_task`             | Time spent per task, in minutes. Blank when not known |
 | `context_compression_per_task` | How often the model summarises to fit its context window, per task |
-| `tokens_per_second`            | Output speed |
+| `tokens_per_second`            | Output speed. Blank when not known |
 | `create`, `bugfix`             | Coding scores, out of 100 |
 | `gamefeel`                     | Gamefeel score, out of 100 |
 | `ideas`, `visuals`, `audio`    | Creativity scores, out of 100 |
 | `re`                           | Gamefeel Reverse-Evaluation (RE), out of 100 |
-| `avg`                          | Average of the seven scores (the six scores and `re`). The overall ranking only uses models with all seven |
+| `avg`                          | Average of the seven scores (the six scores and `re`). Blank unless all seven are in. The overall ranking only uses models with all seven |
 | `open_weights`                 | `yes` or `no`: whether the model's weights are open. Blank when not known |
 | `size_gb`                      | Model size in GB, for open-weight models where known. Blank when not known |
 | `size_basis`                   | The quantization the size is for, where stated |
+| `re_test`                      | A note when the RE score is from the semi-private subset of the RE test (748 tasks). Every other result is the full test, over 8,000 tasks. Blank for the full test |
 
 A blank score means the model has no score for that subcategory.
 
