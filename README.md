@@ -1,6 +1,6 @@
 # The GameFeel Benchmark
 
-A creativity benchmark for AI models on game development. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel, creativity and reverse-evaluation (RE). The site shows each model's scores against its price per task, and the open-weight models with a stated size.
+A creativity benchmark for AI models on game development focusing on understanding game balancing and complex features interacting with each other. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel, creativity and reverse-evaluation (RE). The site shows each model's scores against its price per task, and the open-weight models with a stated size.
 
 **Open the benchmark:** [https://kodasdream.github.io/gamefeel-benchmark/](https://kodasdream.github.io/gamefeel-benchmark/)
 
