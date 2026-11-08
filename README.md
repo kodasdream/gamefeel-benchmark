@@ -61,7 +61,6 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefeelbench.csv), one row per model and effort level. [`data/labs.csv`](data/labs.csv) maps each `lab_key` to its lab name, colour and logo.
 
-The scores are on the **v1.4 standard**: coding scores are 15 points lower than in v1.3, and the gamefeel and creativity scores are 25 points lower. The Gamefeel RE score is not changed by the standard.
 
 | Column                         | Meaning |
 |--------------------------------|---------|
