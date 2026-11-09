@@ -83,6 +83,8 @@ const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
 const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
+const NEW_MODELS = ['Gemini-4-Carbon', 'Fable-5.2'];   // this round's additions: a small NEW! over their columns, in the bar's colour
+const isNew = (d) => NEW_MODELS.includes(d.model);
 const W = 1600;                    // figure width (ledger uses WL)
 const WC = 2600;                   // bar charts: 24 columns side by side, wide enough for chunky bars
 const WL = 2480;
@@ -180,6 +182,7 @@ function columnChart(items, o) {
     s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${yT - 60}" width="${pitch.toFixed(1)}" height="${COL.plot + COL.label + 60}" fill="transparent"/>`;
     s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
     s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="30" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
+    if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(top - 52).toFixed(1)}" font-size="20" font-weight="800" letter-spacing="1" text-anchor="middle" fill="${d.tint}">NEW!</text>`;
     s += iconSvg(d, (cx - 20).toFixed(1), yB + 20, 40);
     s += `<text x="${cx.toFixed(1)}" y="${yB + 92}" font-size="20" font-weight="700" text-anchor="middle" fill="${C.soft}">${esc(d.effort)}</text>`;
     s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="20" font-weight="600" text-anchor="middle" fill="${C.soft}">${priceLabel(d)}</text>`;
