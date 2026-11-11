@@ -21,11 +21,19 @@ Gemini-4-Argon,High,google,Google DeepMind,4.6,sub,1M,35,1,158,63,55,35,30,65,30
 Ling-3.2-Flash,Max,ant,Ant Group,0.88,api,256K,48,2,77,40,45,30,30,40,32,3.81,31.5,yes,550,Q8,
 Nemotron-3.5-Super-VL,Max,nvidia,NVIDIA,0.01,api,1M,9,0,480,9,2,27,25,25,25,11.5,17.8,yes,60,quantization not stated,
 Kimi K3.1-Pro,Max,moonshot,Moonshot AI,2.1,api,1M,77,2,73,63,55,10,10,45,27,0.12,30,yes,3000,quantization not stated,
-Qwen-4-27B-Early,XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,14.88,44.6,yes,35,quantization not stated,
+Qwen-4-27B-Early? (qoDuck),XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,14.88,44.6,yes,35,quantization not stated,
 Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,23.33,45,no,,,
-Qwen-4-Flash-Early,Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,19.95,49.9,,,,
-Gpt-6.1-Sol,High,openai,OpenAI,,,,,,,,,,,,,7.61,,,,,"Semi-private subset of the RE test, 748 tasks"
-Gpt-6.1-Terra,High,openai,OpenAI,,,,,,,,,,,,,7.38,,,,,"Semi-private subset of the RE test, 748 tasks"
+Qwen-4-Flash-Early? (qoHawk),Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,19.95,49.9,,,,
+Gpt-6.1-Sol,High,openai,OpenAI,0.26,sub,1M,,,,,,,,,,7.61,,,,,"Semi-private subset of the RE test, 748 tasks"
+Gpt-6.1-Terra,High,openai,OpenAI,0.13,sub,1M,,,,,,,,,,7.38,,,,,"Semi-private subset of the RE test, 748 tasks"
 Gemini-4-Carbon,High,google,Google DeepMind,8.8,api,1M,48,0,180,64,56,51,47,67,33,84.21,57.5,,,,
 Fable-5.2,Max,anthropic,Anthropic,7.2,sub,1M,102,2,90,71,69,51,42,64,31,48.74,53.8,,,,
 Fable-5.2,Medium,anthropic,Anthropic,0.93,sub,1M,51,1,90,66,66,51,42,64,30,56.73,53.7,,,,
+Muse Ember,Max,meta,Meta AI,0.04,api,1M,,,,,,,,,,0.01,,,,,
+Muse Wonder,Max,meta,Meta AI,2.2,api,1M,,,,,,,,,,0.08,,,,,
+Qwen-4-Max-Preview (Ali Cloud Nov 10),XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,,,72,,,,,,,10.28,,,,,
+Qwen-4-Max-Preview (Qwen App Nov 11),High,alibaba,Alibaba Qwen,0,free,1M,,,79,,,,,,,17.9,,,,,
+Qwen-4-Max Preview (Qoder Nov 11),XHigh,alibaba,Alibaba Qwen,0.12,sub,1M,,,62,,,,,,,0.65,,,,,
+Qwen-3.8-27B,XHigh,alibaba,Alibaba Qwen,0.06,sub,256K,,,70,,,,,,,3.68,,,,,
+Gemini-4-Carbon,Low,google,Google DeepMind,2.04,api,1M,,,,,,,,,,23.17,,,,,
+Gemini-4-Carbon,Medium,google,Google DeepMind,2.13,api,1M,,,,,,,,,,71.4,,,,,

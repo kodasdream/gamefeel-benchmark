@@ -78,12 +78,12 @@ const SUBCATEGORY_LIST = SCOPES.slice(1).map(([, l]) => l).join(', ');   // the 
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
-const HIGHLIGHTS = ['Qwen-4-27B-Early', 'Qwen-4-Flash-Early'];                  // measured in purple against the frontier line
+const HIGHLIGHTS = ['Qwen-4-27B-Early? (qoDuck)', 'Qwen-4-Flash-Early? (qoHawk)'];   // measured in purple against the frontier line
 const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
 const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
-const NEW_MODELS = ['Gemini-4-Carbon', 'Fable-5.2'];   // this round's additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = [];   // only the latest additions: a small NEW! over their columns, in the bar's colour (none this round: Gemini-4-Carbon High is already published)
 const isNew = (d) => NEW_MODELS.includes(d.model);
 const W = 1600;                    // figure width (ledger uses WL)
 const WC = 2600;                   // bar charts: 24 columns side by side, wide enough for chunky bars
@@ -232,7 +232,11 @@ function scoresFig(scope, hidden) {
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
     ? [`Average of: ${SUBCATEGORY_LIST}`]
-    : [`${scope === 're' ? 'Gamefeel Reverse-Evaluation (RE)' : SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
+    : scope === 're'
+      ? ['Gamefeel Reverse-Evaluation (RE) score alone: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
+         'The scale runs from 0 to the best score on this chart. Price per task is under each column.',
+         'Only models with a score in this subcategory are listed.']
+      : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
   // best on the right: the columns run from the lowest score on the left to the best on the right
   const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
     { top: TOP, ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1), unit: 'score', empty: 'No model is shown for this view.' });
