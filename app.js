@@ -72,7 +72,7 @@ const SCORE_KEYS = ['create', 'bugfix', 'gamefeel', 'ideas', 'visuals', 'audio',
 const SCOPES = [
   ['overall', 'Overall'], ['create', 'Coding · create'], ['bugfix', 'Coding · bugfix'], ['gamefeel', 'Gamefeel'],
   ['ideas', 'Creativity · ideas'], ['visuals', 'Creativity · visuals'], ['audio', 'Creativity · audio'],
-  ['re', 'Gamefeel · RE'],
+  ['re', 'Gamefeel · RE (combined)'],
 ];
 const SCOPE_LABEL = Object.fromEntries(SCOPES);
 const SUBCATEGORY_LIST = SCOPES.slice(1).map(([, l]) => l).join(', ');   // the seven subcategories the overall averages
