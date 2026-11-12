@@ -60,7 +60,8 @@ async function loadData() {
       tps: num(r.tokens_per_second),
       openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
       reNote: r.re_test || '',   // set only on a result from the semi-private subset of the RE test
-      ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k])])),
+      ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
+      re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_combined: num(r.re_combined),
     };
   });
   return { rows, icons, meta: JSON.parse(meta) };
@@ -227,15 +228,16 @@ function overviewFig(hidden) {
 
 /* ---------- figure: scores columns (overall or one subcategory) ---------- */
 function scoresFig(scope, hidden) {
-  const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
+  let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
+  if (scope === 're') rows = rows.slice(0, 25);   // match the RE export: keep the most relevant results so value labels don't collide
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
     ? [`Average of: ${SUBCATEGORY_LIST}`]
     : scope === 're'
-      ? ['Gamefeel Reverse-Evaluation (RE) score alone: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
-         'The scale runs from 0 to the best score on this chart. Price per task is under each column.',
-         'Only models with a score in this subcategory are listed.']
+      ? ['Gamefeel Reverse-Evaluation (RE) combined score: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
+         'Combined = 66% blind + 33% assisted; assisted results get 39 rated examples to calibrate their feedback. Overall uses RE combined.',
+         'The scale runs from 0 to the best score on this chart. Price per task is under each column. Showing the top 25 results.']
       : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
   // best on the right: the columns run from the lowest score on the left to the best on the right
   const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
@@ -248,6 +250,35 @@ function scoresFig(scope, hidden) {
   const subset = rows.filter((d) => d.reNote);
   if (subset.length) body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">${esc(reFootnote(subset))}</text>`;
   return { W: WC, H, body, wide: true };
+}
+
+/* ---------- figure: the RE export — blind / assisted / combined as three bar charts stacked vertically ---------- */
+function reStackedFig() {
+  const sections = [
+    ['re_blind', 'BLIND', 'No worked examples shown — the model rates the game proposals cold.'],
+    ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
+    ['re_combined', 'COMBINED', '66% blind + 33% assisted. A model with no assisted score gets a 1.5x boost on its blind score so it can still rank overall.'],
+  ];
+  const GAP = 90, RE_LIMIT = 25;   // only the most relevant results, so the value labels don't run into each other
+  let body = '', top = TOP, H = TOP;
+  for (const [key, label, desc] of sections) {
+    const all = DATA.filter((d) => d[key] != null).sort((a, b) => a[key] - b[key]);   // lowest left, best right
+    const rows = all.slice(-RE_LIMIT);   // drop the miscellaneous low scorers, keep the top 25
+    const note = all.length > rows.length ? `  Showing the top ${rows.length} of ${all.length} results.` : '';
+    body += `<text x="64" y="${top + 26}" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
+    body += `<text x="64" y="${top + 60}" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
+    const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${label} ${fmtScore(d[key])} · ${priceText(d)}` }));
+    const chart = columnChart(items, { top: top + 80, ...fitAxis(rows.length ? rows[rows.length - 1][key] : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` });
+    body += chart.body;
+    top = chart.H + GAP;
+    H = chart.H;
+  }
+  H = top - GAP + 60;
+  const lines = [
+    'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
+    'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Overall uses RE combined only.',
+  ];
+  return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE · BLIND / ASSISTED / COMBINED', lines) + body, wide: true };
 }
 
 /* ---------- figure: price to performance (log price vs score) ---------- */
@@ -856,6 +887,13 @@ $('#modelList').addEventListener('mouseleave', () => { state.spot = null; applyS
 $('#q').addEventListener('input', renderSidebar);
 $('#showAll').addEventListener('click', () => { state.hidden.clear(); render(); });
 $('#hideAll').addEventListener('click', () => { state.hidden = new Set(DATA.map((d) => d.id)); render(); });
+/* Collapsible model sidebar: give the charts the full width on demand (and start collapsed on small screens). */
+const setSide = (show) => {
+  $('#app').classList.toggle('no-side', !show);
+  $('#sideToggle').setAttribute('aria-pressed', String(show));
+};
+$('#sideToggle').addEventListener('click', () => setSide($('#app').classList.contains('no-side')));
+if (innerWidth <= 900) setSide(false);
 const tip = $('#tip');
 $('#stage').addEventListener('mousemove', (e) => {
   const t = e.target.closest('[data-tip]');
@@ -881,7 +919,7 @@ const EXPORTS = [
   { name: '04-speed-minutes', build: () => speedFig('min', NONE) },
   { name: '05-ledger', build: () => ledgerFig({ key: 'avg', dir: -1 }, NONE) },
   ...SCOPES.flatMap(([k]) => [
-    { name: `scores-${k}`, build: () => scoresFig(k, NONE) },
+    { name: `scores-${k}`, build: () => (k === 're' ? reStackedFig() : scoresFig(k, NONE)) },
     { name: `price-performance-${k}`, build: () => ppFig(k, NONE) },
   ]),
   { name: 'size-performance-overall', build: () => sizeFig('overall', NONE) },
