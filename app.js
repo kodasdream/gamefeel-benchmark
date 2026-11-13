@@ -117,6 +117,8 @@ const RE_FIELD = { combined: 're_combined', blind: 're_blind', assisted: 're_ass
 let RE_VIEW = 'combined';
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
   : scope === 're' ? (d[RE_FIELD[RE_VIEW]] ?? null) : (d[scope] ?? null));
+// One column per model: keep the best-scoring reasoning effort. Callers pass rows sorted best-first.
+const bestPerModel = (rows) => { const seen = new Set(); return rows.filter((d) => (seen.has(d.model) ? false : (seen.add(d.model), true))); };
 const priceText = (d) => (d.price == null ? 'no price given' : d.free ? 'free' : `$${d.price.toFixed(2)}/task${d.basis ? ` · ${BASIS_WORD[d.basis] || d.basis}` : ''}`);
 const priceLabel = (d) => (d.price == null ? 'no price' : d.free ? 'free' : `$${d.price.toFixed(2)}`);   // under a column
 // A result from the semi-private subset of the RE test has a note (workbook column V) and an asterisk.
@@ -200,6 +202,10 @@ function columnChart(items, o) {
   const yT = o.top + 70, yB = yT + COL.plot, H = yB + COL.label + 150;
   const Y = (v) => yB - (v / o.max) * COL.plot;
   const pitch = Math.min(PW / items.length, 220), bw = Math.min(pitch * 0.74, 160);
+  // dense charts (every model at its best effort) shrink the cap labels so neighbours never collide
+  const vFont = Math.min(30, Math.max(15, pitch * 0.45));
+  const sFont = Math.min(20, Math.max(11, pitch * 0.26));
+  const iSize = Math.min(40, pitch * 0.8);
   const x0 = X0 + (PW - pitch * items.length) / 2;
   let s = '';
   o.ticks.forEach((t) => {
@@ -215,11 +221,11 @@ function columnChart(items, o) {
     s += `<g class="col" data-m="${esc(d.id)}" data-tip="${esc([shortName(d), d.effort, d.lab, it.tip].filter(Boolean).join(' · '))}">`;
     s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${yT - 60}" width="${pitch.toFixed(1)}" height="${COL.plot + COL.label + 60}" fill="transparent"/>`;
     s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
-    s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="30" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="${vFont.toFixed(1)}" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
     if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(top - 52).toFixed(1)}" font-size="20" font-weight="800" letter-spacing="1" text-anchor="middle" fill="${d.tint}">NEW!</text>`;
-    s += iconSvg(d, (cx - 20).toFixed(1), yB + 20, 40);
-    s += `<text x="${cx.toFixed(1)}" y="${yB + 92}" font-size="20" font-weight="700" text-anchor="middle" fill="${C.soft}">${esc(d.effort)}</text>`;
-    s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="20" font-weight="600" text-anchor="middle" fill="${C.soft}">${priceLabel(d)}</text>`;
+    s += iconSvg(d, (cx - iSize / 2).toFixed(1), yB + 20, iSize);
+    s += `<text x="${cx.toFixed(1)}" y="${yB + 92}" font-size="${sFont.toFixed(1)}" font-weight="700" text-anchor="middle" fill="${C.soft}">${esc(d.effort)}</text>`;
+    s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="${sFont.toFixed(1)}" font-weight="600" text-anchor="middle" fill="${C.soft}">${priceLabel(d)}</text>`;
     s += `<text transform="translate(${nx.toFixed(1)} ${yB + 150}) rotate(-45)" font-size="23" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(shortName(d))}</text>`;
     s += `</g>`;
   });
@@ -263,9 +269,8 @@ function overviewFig(hidden) {
 function scoresFig(scope, hidden) {
   let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
-  const total = rows.length;
-  if (scope === 're') rows = rows.slice(0, 25);   // match the RE export: keep the most relevant results so value labels don't collide
-  const countNote = total > rows.length ? `Showing the top ${rows.length} of ${total} results.` : `Showing all ${total} results.`;
+  if (scope === 're') rows = bestPerModel(rows);   // match the RE export: every model once, at its best reasoning effort
+  const countNote = `One column per model at its best reasoning effort — showing all ${rows.length} models.`;
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
     ? [`Average of: ${SUBCATEGORY_LIST}`]
@@ -292,12 +297,12 @@ function reStackedFig() {
     ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
     ['re_combined', 'COMBINED', '66% blind + 33% assisted. A model with no assisted score gets a 1.5x boost on its blind score so it can still rank overall.'],
   ];
-  const GAP = 90, RE_LIMIT = 25;   // only the most relevant results, so the value labels don't run into each other
+  const GAP = 90;
   let body = '', top = TOP, H = TOP;
   for (const [key, label, desc] of sections) {
-    const all = DATA.filter((d) => d[key] != null).sort((a, b) => a[key] - b[key]);   // lowest left, best right
-    const rows = all.slice(-RE_LIMIT);   // drop the miscellaneous low scorers, keep the top 25
-    const note = all.length > rows.length ? `  Showing the top ${rows.length} of ${all.length} results.` : '';
+    const byScore = DATA.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key]);
+    const rows = bestPerModel(byScore).reverse();   // every model once at its best effort; lowest left, best right
+    const note = `  All ${rows.length} models, each at its best reasoning effort.`;
     body += `<text x="64" y="${top + 26}" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
     body += `<text x="64" y="${top + 60}" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
     const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${label} ${fmtScore(d[key])} · ${priceText(d)}` }));
@@ -310,6 +315,7 @@ function reStackedFig() {
   const lines = [
     'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
     'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Overall uses RE combined only.',
+    'Every model is shown once per chart, at its best reasoning effort.',
   ];
   return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE', lines) + body, wide: true };
 }
