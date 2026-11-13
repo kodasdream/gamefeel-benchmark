@@ -81,6 +81,7 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 | `size_gb`                      | Model size in GB, for open-weight models where known. Blank when not known |
 | `size_basis`                   | The quantization the size is for, where stated |
 | `re_test`                      | A note when the RE score is from the semi-private subset of the RE test (748 tasks). Every other result is the full test, over 8,000 tasks. Blank for the full test |
+| `aa_index`                     | Artificial Analysis Intelligence Index (artificialanalysis.ai, read 2026-11-13) for the same model and reasoning effort. Blank when the model is not on their leaderboard |
 
 A blank score means the model has no score for that subcategory.
 

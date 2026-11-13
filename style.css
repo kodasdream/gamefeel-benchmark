@@ -1,6 +1,8 @@
 :root {
   --bg: #eaeef6; --bg2: #f4f7fc; --ink: #1b2434; --ink-soft: #5a6478; --ink-faint: #98a1b5;
   --line: rgba(27,36,52,.08); --azure: #2b6cee; --gold: #c89600; --track: #e6ebf5; --zebra: #f5f7fb;
+  --good: #1f9d55; --good-ink: #157a41; --bad: #d64545; --bad-ink: #b42f2f; --card: #fff; --radius: 16px;
+  --shadow: 0 1px 2px rgba(27,36,52,.04), 0 4px 18px rgba(88,106,140,.10);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -105,6 +107,67 @@ body.exporting #exportStage { display: block; }
 .meta a { color: var(--azure); text-decoration: none; }
 .meta a:hover { text-decoration: underline; }
 
+
+/* ---------- ☰ menu ---------- */
+#menuBtn { border: 1px solid var(--line); background: #fff; border-radius: 10px; width: 38px; height: 34px; display: inline-grid; place-items: center; cursor: pointer; flex-shrink: 0; transition: background .12s; }
+#menuBtn:hover { background: var(--track); }
+#menuBtn[aria-expanded="true"] { background: var(--ink); border-color: var(--ink); }
+#menuBtn[aria-expanded="true"] .burger i { background: #fff; }
+.burger { display: grid; gap: 3.5px; }
+.burger i { display: block; width: 16px; height: 2px; border-radius: 2px; background: var(--ink); }
+.menu { position: fixed; top: 54px; left: 12px; z-index: 60; width: 320px; max-height: calc(100dvh - 80px); overflow-y: auto; background: #fff; border-radius: var(--radius); box-shadow: 0 12px 40px rgba(27,36,52,.22); padding: 8px; animation: figIn .14s ease; }
+.menu[hidden] { display: none; }
+.menu .mhead { font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--ink-faint); padding: 10px 10px 4px; }
+.menu button { display: grid; grid-template-columns: 1fr auto; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 8px 10px; cursor: pointer; }
+.menu button:hover { background: #eef3ff; }
+.menu button.on { background: var(--track); }
+.menu button b { font-size: 14px; font-weight: 800; }
+.menu button small { grid-column: 1; font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.menu button kbd { grid-row: 1 / span 2; grid-column: 2; align-self: center; font: 700 11px 'Ubuntu Sans', system-ui, sans-serif; color: var(--ink-faint); background: var(--zebra); border-radius: 6px; padding: 2px 6px; }
+.crumb { font-size: 13px; font-weight: 800; color: var(--ink-soft); }
+
+/* ---------- HTML sections (☰ views and the phone ranking) ---------- */
+.sections { max-width: 1180px; }
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 26px 20px; }
+.card .kick { font-size: 11px; font-weight: 700; letter-spacing: 3.5px; color: var(--ink-faint); }
+.card h2 { font-size: 26px; font-weight: 800; letter-spacing: -.4px; margin: 4px 0 4px; }
+.card .sub { font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 14px; max-width: 900px; }
+.card .foot { font-size: 12px; color: var(--ink-faint); font-weight: 600; margin-top: 14px; line-height: 1.5; }
+.sortbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.hsvg { width: 100%; height: auto; display: block; }
+.hsvg .grid { stroke: var(--track); stroke-width: 1.5; }
+.hsvg .ax { font-size: 12px; font-weight: 700; fill: var(--ink-faint); }
+.hsvg .lbl { font-size: 14px; font-weight: 800; fill: var(--ink); }
+.hsvg .note { font-size: 12.5px; font-weight: 700; fill: var(--ink-soft); }
+.hsvg .tiny { font-size: 11px; font-weight: 700; fill: var(--ink-soft); }
+.mico { display: inline-flex; flex-shrink: 0; }
+.nm { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.nm b { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nm small { font-size: .82em; font-weight: 600; color: var(--ink-faint); white-space: nowrap; }
+.newb { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #fff; border-radius: 5px; padding: 1px 5px; align-self: center; }
+.tscroll { overflow-x: auto; }
+table.hm { border-collapse: separate; border-spacing: 3px; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.hm th { position: sticky; top: 0; background: #fff; z-index: 1; padding: 0 0 4px; }
+table.hm th button { border: 0; background: transparent; width: 100%; font: 800 11px 'Ubuntu Sans', system-ui, sans-serif; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-faint); padding: 6px 4px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+table.hm th button:hover { background: var(--track); }
+table.hm th button.on { color: var(--azure); }
+table.hm th.m button { text-align: left; }
+table.hm td { border-radius: 7px; text-align: center; font-weight: 700; padding: 6px 4px; min-width: 64px; }
+table.hm td.na { background: var(--zebra); color: #b6bdcc; }
+table.hm td.ov { background: var(--ink); color: #fff; }
+table.hm td.m { text-align: left; min-width: 250px; padding: 4px 8px 4px 0; }
+table.hm td.m, ol.rank .rn { display: flex; align-items: center; gap: 8px; }
+table.hm .mico svg { width: 18px; height: 18px; }
+ol.rank { list-style: none; }
+ol.rank li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+ol.rank .rk { font-weight: 800; color: var(--ink-faint); font-size: 13px; text-align: right; }
+ol.rank .rl { display: grid; gap: 5px; min-width: 0; font-size: 14px; }
+ol.rank .mico svg { width: 18px; height: 18px; }
+ol.rank .rb { display: flex; align-items: center; gap: 8px; }
+ol.rank .rb i { display: block; height: 9px; border-radius: 0 5px 5px 0; }
+ol.rank .rb b { font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+ol.rank .rb em { margin-left: auto; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); }
+
 /* ---------- responsive ---------- */
 @media (max-width: 1100px) {
   #app { grid-template-columns: 232px minmax(0, 1fr); }
@@ -134,4 +197,18 @@ body.exporting #exportStage { display: block; }
   .meta { display: none; }
   #sideToggle { padding: 5px 9px; font-size: 12px; }
   .stage { padding: 8px; }
+}
+
+/* ---------- phone: tabs become a bottom bar, the content gets the width ---------- */
+@media (max-width: 700px) {
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; border-radius: 0; justify-content: space-around; background: rgba(255,255,255,.96); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); overflow: visible; }
+  .tabs button { padding: 8px 6px; font-size: 12px; flex: 1; }
+  .tabs button.on { box-shadow: none; background: var(--track); }
+  header.top { flex-wrap: nowrap; backdrop-filter: none; background: #fff; }
+  .stage { padding-bottom: 84px; }
+  .menu { left: 8px; right: 8px; width: auto; top: 52px; }
+  .card { padding: 16px 14px; border-radius: 14px; }
+  .card h2 { font-size: 21px; }
+  .controls .seg button { padding: 7px 12px; }
+  .hsvg .lbl { font-size: 21px; } .hsvg .note, .hsvg .ax { font-size: 19px; } .hsvg .tiny { font-size: 17px; }
 }

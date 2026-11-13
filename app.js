@@ -59,7 +59,7 @@ async function loadData() {
       timeMin: num(r.minutes_per_task), compress: num(r.context_compression_per_task),
       tps: num(r.tokens_per_second),
       openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
-      reNote: r.re_test || '',   // set only on a result from the semi-private subset of the RE test
+      reNote: r.re_test || '', aaIndex: num(r.aa_index || ''),   // set only on a result from the semi-private subset of the RE test
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
       re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_combined: num(r.re_combined),
     };
@@ -199,7 +199,10 @@ function fitAxis(maxVal) {
 function columnChart(items, o) {
   if (!items.length) return { H: o.top + 700, body: emptyNote(WC, o.top + 200, o.empty) };
   const X0 = 64 + COL.axis, X1 = WC - 64, PW = X1 - X0;
-  const yT = o.top + 70, yB = yT + COL.plot, H = yB + COL.label + 150;
+  const yT = o.top + 70, yB = yT + COL.plot;
+  // room under the axis for the longest diagonal name, plus a footnote line below it
+  const drop = Math.max(...items.map((it) => textW(shortName(it.d), 23, 800))) * Math.SQRT1_2;
+  const H = Math.max(yB + COL.label + 150, yB + 150 + drop + 90);
   const Y = (v) => yB - (v / o.max) * COL.plot;
   const pitch = Math.min(PW / items.length, 220), bw = Math.min(pitch * 0.74, 160);
   // dense charts (every model at its best effort) shrink the cap labels so neighbours never collide
@@ -211,7 +214,7 @@ function columnChart(items, o) {
   o.ticks.forEach((t) => {
     const y = Y(t).toFixed(1);
     s += `<line x1="${X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="${t === 0 ? C.ink : C.track}" stroke-opacity="${t === 0 ? 0.25 : 1}" stroke-width="2"/>`;
-    s += `<text x="${X0 - 18}" y="${(Y(t) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${t}</text>`;
+    s += `<text x="${X0 - 18}" y="${(Y(t) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${+t.toFixed(1)}</text>`;
   });
   s += `<text x="${X0 - 18}" y="${yT - 30}" font-size="20" font-weight="700" text-anchor="end" fill="${C.faint}">${esc(o.unit)}</text>`;
   items.forEach((it, i) => {
@@ -232,6 +235,12 @@ function columnChart(items, o) {
   return { H, body: s };
 }
 
+/* Footnotes under a column figure, wrapped to its width; the figure grows by one line per extra line. */
+function footNotes(texts, baseH) {
+  const lines = texts.flatMap((t) => wrapText(t, 20, 600, WC - 128));
+  return { H: baseH + 30 * Math.max(0, lines.length - 1),
+    body: lines.map((t, i) => `<text x="64" y="${baseH - 40 + 30 * i}" font-size="20" font-weight="600" fill="${C.soft}">${esc(t)}</text>`).join('') };
+}
 /* ---------- figure: overview ---------- */
 function overviewFig(hidden) {
   const vis = DATA.filter((d) => !hidden.has(d.id));
@@ -249,7 +258,8 @@ function overviewFig(hidden) {
   // best on the right: the columns run from the lowest average on the left to the best on the right
   const chart = columnChart(rows.slice().reverse().map((d) => ({ d, v: d.avg, value: d.avg.toFixed(1), tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })),
     { top: y0, ...fitAxis(rows.length ? rows[0].avg : 1), unit: 'score', empty: 'No model is shown. Tick one on the left.' });
-  const H = chart.H;
+  const foot = footNotes(partial.length ? [`Not in overall (partial record): ${partial.map((d) => `${d.model} ${d.effort}`).join(' · ')}`] : [], chart.H);
+  const H = foot.H;
   let body = frame(WC, H, 'OVERALL · SCORES', [`Average of: ${SUBCATEGORY_LIST}`]);
   tiles.forEach(([label, value, sub], i) => {
     const x = 64 + i * (tw + 24), y = TOP;
@@ -258,10 +268,7 @@ function overviewFig(hidden) {
     body += `<text x="${(x + 30).toFixed(1)}" y="${y + 102}" font-size="58" font-weight="800" fill="${C.ink}">${esc(value)}</text>`;
     body += `<text x="${(x + 30).toFixed(1)}" y="${y + 134}" font-size="20" font-weight="600" fill="${C.soft}">${esc(sub)}</text>`;
   });
-  body += chart.body;
-  if (partial.length) {
-    body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}</text>`;
-  }
+  body += chart.body + foot.body;
   return { W: WC, H, body, wide: true };
 }
 
@@ -280,13 +287,13 @@ function scoresFig(scope, hidden) {
   // best on the right: the columns run from the lowest score on the left to the best on the right
   const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
     { top: TOP, ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1), unit: 'score', empty: 'No model is shown for this view.' });
-  const H = chart.H;
-  let body = frame(WC, H, `${figTitle(scope)} · SCORES`, lines) + chart.body;
-  if (partial.length) {
-    body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}. They appear in each subcategory they have a score in.</text>`;
-  }
   const subset = rows.filter((d) => d.reNote);
-  if (subset.length) body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">${esc(reFootnote(subset))}</text>`;
+  const foot = footNotes([
+    ...(partial.length ? [`Not in overall (partial record): ${partial.map((d) => `${d.model} ${d.effort}`).join(' · ')}. They appear in each subcategory they have a score in.`] : []),
+    ...(subset.length ? [reFootnote(subset)] : []),
+  ], chart.H);
+  const H = foot.H;
+  let body = frame(WC, H, `${figTitle(scope)} · SCORES`, lines) + chart.body + foot.body;
   return { W: WC, H, body, wide: true };
 }
 
@@ -825,16 +832,180 @@ function ledgerFig(sort, hidden) {
   return { W: WL, H, body: frame(WL, H, 'EVERYTHING, ON ONE LEDGER', lines) + s };
 }
 
+/* ============================================================
+   EXTRA SECTIONS (reached from the ☰ menu) and the phone ranking list.
+   These are HTML, not export figures: they reflow to the screen and their tables sort in place.
+   ============================================================ */
+const EXTRA = [
+  ['glance', 'Every score at a glance', 'All seven scores in one sortable heatmap'],
+  ['rehelp', 'Blind vs assisted RE', 'How much the 39 rated examples help each model'],
+  ['effort', 'Is more effort worth it?', 'Each model across its reasoning-effort levels'],
+  ['general', 'Gamefeel vs general capability', 'Outliers against the Artificial Analysis index'],
+];
+const EXTRA_KEYS = EXTRA.map((e) => e[0]);
+const isPhone = () => matchMedia('(max-width: 700px)').matches;
+const GLANCE_COLS = [['create', 'Create'], ['bugfix', 'Bugfix'], ['gamefeel', 'Gamefeel'], ['ideas', 'Ideas'],
+  ['visuals', 'Visuals'], ['audio', 'Audio'], ['re', 'RE'], ['avg', 'Overall']];
+const nameCell = (d) => `${iconHTML(d)}<span class="nm"><b>${esc(shortName(d))}</b>${d.effort ? `<small>${esc(d.effort)}</small>` : ''}${isNew(d) ? `<span class="newb" style="background:${d.tint}">NEW</span>` : ''}</span>`;
+const card = (title, sub, inner, foot = '') => `<section class="card"><div class="kick">THE GAMEFEEL BENCHMARK${standardTag()}</div><h2>${esc(title)}</h2>` +
+  `${sub ? `<p class="sub">${sub}</p>` : ''}${inner}${foot ? `<p class="foot">${foot}</p>` : ''}</section>`;
+const sortBy = (rows, key, dir, val = (d, k) => d[k]) => [...rows].sort((a, b) => {
+  const va = val(a, key), vb = val(b, key);
+  if (va == null || vb == null) return va == null && vb == null ? 0 : va == null ? 1 : -1;
+  return typeof va === 'string' ? va.localeCompare(vb) * dir : (va - vb) * dir;
+});
+const sortHead = (attr, key, label, sort, cls = '') => `<th class="${cls}"><button type="button" data-${attr}="${key}" class="${sort.key === key ? 'on' : ''}">${esc(label)}${sort.key === key ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button></th>`;
+
+/* ---------- phone: one ranked list per scope instead of a shrunken column chart ---------- */
+function rankListHTML(scope, hidden) {
+  let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null).sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
+  if (scope === 're') rows = bestPerModel(rows);
+  const max = rows.length ? scoreOf(rows[0], scope) : 1;
+  const title = scope === 'overall' ? 'Overall' : scope === 're' ? `Gamefeel RE · ${RE_VIEW}` : SCOPE_LABEL[scope];
+  const list = rows.map((d, i) => { const v = scoreOf(d, scope); return `<li data-m="${esc(d.id)}"><span class="rk">${i + 1}</span><div class="rl"><div class="rn">${nameCell(d)}</div>` +
+    `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${scope === 'overall' ? v.toFixed(1) : fmtScore(v)}</b><em>${priceLabel(d)}</em></div></div></li>`; }).join('');
+  const sub = scope === 'overall' ? 'Average of the seven scores. Models with a partial record are not ranked.' : scope === 're' ? 'Feedback on game proposals, especially balancing. Best effort per model.' : 'Score out of 100.';
+  const subset = rows.filter((d) => d.reNote);
+  return card(title, sub, rows.length ? `<ol class="rank">${list}</ol>` : '<p class="sub">No model is shown.</p>', subset.length ? esc(reFootnote(subset)) : '');
+}
+
+/* ---------- every score at a glance: sortable heatmap ---------- */
+function glanceHTML(sort, hidden) {
+  const all = DATA.filter((d) => !hidden.has(d.id) && SCORE_KEYS.filter((k) => d[k] != null).length >= 2);
+  const rows = sortBy(all, sort.key, sort.dir, (d, k) => (k === 'model' ? d.model : d[k]));
+  const range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, [Math.min(...v), Math.max(...v)]]; }));
+  const shade = (k, v) => {
+    if (v == null) return 'class="na"';
+    const [a, b] = range[k], t = (v - a) / (b - a || 1);
+    return `style="background:hsl(220 78% ${(96 - t * 52).toFixed(0)}%);color:${t > 0.55 ? '#fff' : 'var(--ink)'}"`;
+  };
+  const head = `<tr>${sortHead('gsort', 'model', 'Model', sort, 'm')}${GLANCE_COLS.map(([k, l]) => sortHead('gsort', k, l, sort)).join('')}</tr>`;
+  const body = rows.map((d) => `<tr data-m="${esc(d.id)}"><td class="m">${nameCell(d)}</td>${GLANCE_COLS.map(([k]) =>
+    `<td ${k === 'avg' && d.avg != null ? 'class="ov"' : shade(k, d[k])}>${d[k] == null ? '—' : k === 'avg' ? d.avg.toFixed(1) : fmtScore(d[k])}</td>`).join('')}</tr>`).join('');
+  return card('Every score at a glance',
+    'Darker = better within that column, so a strong ideas score and a strong RE score read the same way. Click a heading to sort; click again to reverse.',
+    `<div class="tscroll"><table class="hm">${head}${body}</table></div>`,
+    `RE is the combined score. Overall needs all seven scores; a dash means no score yet. ${rows.length} entries with at least two scores.`);
+}
+
+/* ---------- blind vs assisted RE: dumbbell ---------- */
+function reHelpHTML(sort, hidden) {
+  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_assisted != null);
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? d.re_assisted - d.re_blind : k === 'model' ? d.model : d[k]));
+  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 330 : 300, R = W - (ph ? 70 : 150), rowH = 46, H = 50 + rows.length * rowH, X = (v) => L + (v / 100) * (R - L);
+  let s = '';
+  [0, 20, 40, 60, 80, 100].forEach((t) => { s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`; });
+  rows.forEach((d, i) => {
+    const y = 52 + i * rowH, gain = d.re_assisted - d.re_blind;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · blind ${fmtScore(d.re_blind)} · assisted ${fmtScore(d.re_assisted)} · combined ${fmtScore(d.re_combined)}`)}">`;
+    s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
+    s += `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}</text>`;
+    s += `<line x1="${X(d.re_blind)}" x2="${X(d.re_assisted)}" y1="${y}" y2="${y}" stroke="${d.tint}" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>`;
+    s += `<circle cx="${X(d.re_blind)}" cy="${y}" r="7.5" fill="#fff" stroke="${d.tint}" stroke-width="3"/><circle cx="${X(d.re_assisted)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
+    if (d.re_combined != null) s += `<path d="M${X(d.re_combined).toFixed(1)} ${y - 12} l6 -9 h-12z" fill="var(--ink)"/>`;
+    s += `<text x="${X(Math.max(d.re_blind, d.re_assisted)) + 15}" y="${y + 5}" class="note">${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)}</text></g>`;
+  });
+  const opts = [['re_combined', 'Combined'], ['gain', 'Gain from examples'], ['re_blind', 'Blind'], ['re_assisted', 'Assisted'], ['model', 'Name']];
+  return card('Blind vs assisted RE: how much do examples help?',
+    '○ blind score (no examples) · ● assisted score (after studying 39 rated examples) · ▼ combined (66% blind + 33% assisted). A long bar means the model learns a lot from examples.',
+    `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
+    (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
+    `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own row.`);
+}
+
+/* ---------- is more effort worth it: each model's effort levels as one line ---------- */
+const EFFORT_ORDER = { Low: 0, Medium: 1, High: 2, XHigh: 3, Max: 4 };
+function effortHTML(metric, hidden) {
+  const val = (d) => (metric === 're' ? d.re : d.avg);
+  const fam = {};
+  DATA.filter((d) => !hidden.has(d.id) && val(d) != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
+  const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
+  const tog = `<div class="sortbar"><span class="seg-cap">Score</span><div class="seg">${[['avg', 'Overall'], ['re', 'Gamefeel RE (combined)']].map(([k, l]) => `<button type="button" data-emetric="${k}" class="${metric === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
+  if (!F.length) return card('Is more reasoning effort worth it?', '', tog + '<p class="sub">No model has two or more effort levels with a price and a score in this view.</p>');
+  const ph = isPhone(), W = ph ? 620 : 1000, H = ph ? 460 : 520, L = 50, B = H - 56, T = 26, R = W - (ph ? 130 : 190);
+  const pts = F.flat(), xs = pts.map((d) => d.price), ys = pts.map(val);
+  const x0 = Math.min(...xs) / 1.6, x1 = Math.max(...xs) * 1.6;
+  const y0 = Math.max(0, Math.floor((Math.min(...ys) - 3) / 5) * 5), y1 = Math.ceil((Math.max(...ys) + 3) / 5) * 5;
+  const X = (v) => L + (Math.log(v / x0) / Math.log(x1 / x0)) * (R - L), Y = (v) => B - ((v - y0) / (y1 - y0)) * (B - T);
+  let s = '';
+  for (let v = y0; v <= y1; v += 5) s += `<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${L - 10}" y="${Y(v) + 4}" class="ax" text-anchor="end">${v}</text>`;
+  [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10].filter((t) => t >= x0 && t <= x1).forEach((t) => { s += `<text x="${X(t)}" y="${B + 22}" class="ax" text-anchor="middle">$${t}</text>`; });
+  s += `<text x="${(L + R) / 2}" y="${H - 6}" class="note" text-anchor="middle">price per task (log scale)</text>`;
+  const dashes = ['', '10 6', '2 6', '14 4 2 4', '6 3'], ends = [];
+  F.forEach((g, fi) => {
+    const c = g[0].tint;
+    s += `<g data-m="${esc(g[0].id)}"><path d="${g.map((d, i) => (i ? 'L' : 'M') + X(d.price).toFixed(1) + ' ' + Y(val(d)).toFixed(1)).join('')}" fill="none" stroke="${c}" stroke-width="3" stroke-dasharray="${dashes[fi % dashes.length]}"/>`;
+    g.forEach((d, i) => {
+      s += `<g data-tip="${esc(`${modelEffort(d)} · ${fmtScore(val(d))} · ${priceText(d)}`)}"><circle cx="${X(d.price)}" cy="${Y(val(d))}" r="${5 + i * 1.8}" fill="${c}"/>` +
+        `<text x="${X(d.price)}" y="${Y(val(d)) - 11 - i * 1.8}" class="tiny" text-anchor="middle">${esc(d.effort)}</text></g>`;
+    });
+    s += '</g>';
+    const e = g[g.length - 1]; ends.push({ y: Y(val(e)), t: e.model, c });
+  });
+  ends.sort((a, b) => a.y - b.y).forEach((e, i, arr) => { if (i && e.y - arr[i - 1].y < 18) e.y = arr[i - 1].y + 18; s += `<text x="${R + 14}" y="${e.y + 4}" class="lbl" style="fill:${e.c}">${esc(e.t)}</text>`; });
+  return card('Is more reasoning effort worth it?',
+    'Each line is one model at its effort levels; bigger dot = more effort. Up and to the right is the normal trade. A line that goes down to the right means paying for more effort bought a lower score.',
+    tog + `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>`,
+    'Only models tested at two or more effort levels, each with a price and a score in this view.');
+}
+
+/* ---------- Gamefeel vs general capability (Artificial Analysis Intelligence Index) ---------- */
+function linFit(pts) {
+  const n = pts.length, mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n;
+  const sxx = pts.reduce((a, p) => a + (p[0] - mx) ** 2, 0), sxy = pts.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0);
+  const b = sxx ? sxy / sxx : 0, a = my - b * mx;
+  const ssr = pts.reduce((s, p) => s + (p[1] - (a + b * p[0])) ** 2, 0), sst = pts.reduce((s, p) => s + (p[1] - my) ** 2, 0);
+  return { a, b, r2: sst ? 1 - ssr / sst : 0 };
+}
+function generalHTML(metric, sort, hidden) {
+  const val = (d) => (metric === 're' ? d.re : d.avg);
+  const base = DATA.filter((d) => !hidden.has(d.id) && d.aaIndex != null && val(d) != null);
+  const tog = `<div class="sortbar"><span class="seg-cap">Gamefeel score</span><div class="seg">${[['avg', 'Overall'], ['re', 'RE (combined)']].map(([k, l]) => `<button type="button" data-gmetric="${k}" class="${metric === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
+  if (base.length < 3) return card('Gamefeel vs general capability', '', tog + '<p class="sub">Fewer than three shown models have both scores.</p>');
+  const fit = linFit(base.map((d) => [d.aaIndex, val(d)]));
+  base.forEach((d) => { d._exp = fit.a + fit.b * d.aaIndex; d._gap = val(d) - d._exp; d._val = val(d); });
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'model' ? d.model : k === 'gap' ? d._gap : k === 'aa' ? d.aaIndex : d._val));
+  const lo = Math.min(0, ...rows.map((d) => Math.min(d._val, d._exp))), hi = Math.max(...rows.map((d) => Math.max(d._val, d._exp)));
+  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 330 : 300, R = W - (ph ? 80 : 150), rowH = 40, H = 50 + rows.length * rowH;
+  const X = (v) => L + ((v - lo) / (hi - lo || 1)) * (R - L);
+  const step = hi - lo > 40 ? 10 : 5;
+  let s = '';
+  for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`;
+  rows.forEach((d, i) => {
+    const y = 50 + i * rowH, up = d._gap >= 0;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · Gamefeel ${fmtScore(d._val)} · expected from AA index ${d.aaIndex}: ${d._exp.toFixed(1)}`)}">`;
+    s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
+    s += `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${esc(modelEffort(d))}</text>`;
+    s += `<line x1="${X(d._exp)}" x2="${X(d._val)}" y1="${y}" y2="${y}" stroke="${up ? 'var(--good)' : 'var(--bad)'}" stroke-opacity=".45" stroke-width="7" stroke-linecap="round"/>`;
+    s += `<circle cx="${X(d._exp)}" cy="${y}" r="7" fill="#fff" stroke="var(--ink-faint)" stroke-width="3"/><circle cx="${X(d._val)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
+    s += `<text x="${X(Math.max(d._val, d._exp)) + 14}" y="${y + 5}" class="note" style="fill:${up ? 'var(--good-ink)' : 'var(--bad-ink)'}">${up ? '▲ +' : '▼ −'}${Math.abs(d._gap).toFixed(1)}</text></g>`;
+  });
+  const opts = [['gap', 'Outlier gap'], ['val', 'Gamefeel'], ['aa', 'AA index'], ['model', 'Name']];
+  const what = metric === 're' ? 'RE combined' : 'overall';
+  return card('Gamefeel vs general capability',
+    `○ the Gamefeel ${what} score a model would get from its general capability alone (a straight-line fit on the Artificial Analysis Intelligence Index, r² = ${fit.r2.toFixed(2)}) · ● its actual score. ▲ green = better at game work than its general capability predicts, ▼ red = worse.`,
+    tog + `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-asort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
+    `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>`,
+    `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.`);
+}
+
 /* ---------- app state ---------- */
 const TABS_KEYS = TABS.map((t) => t[0]);
 const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
 const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
+  gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
 
 function buildCurrent() {
+  const phone = isPhone();
+  if (phone && (state.tab === 'overview' || (state.tab === 'explorer' && state.mode === 'score'))) return { html: rankListHTML(state.tab === 'overview' ? state.pscope || 'overall' : state.scope, state.hidden) };
   switch (state.tab) {
+    case 'glance': return { html: glanceHTML(state.gsort, state.hidden) };
+    case 'rehelp': return { html: reHelpHTML(state.hsort, state.hidden) };
+    case 'effort': return { html: effortHTML(state.emetric, state.hidden) };
+    case 'general': return { html: generalHTML(state.gmetric, state.asort, state.hidden) };
     case 'overview': return overviewFig(state.hidden);
     case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, state.hidden)
       : state.mode === 'size' ? sizeFig(state.scope, state.hidden) : ppFig(state.scope, state.hidden);
@@ -847,6 +1018,7 @@ function buildCurrent() {
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
+      if (isPhone()) return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-pscope="${k}" class="${(state.pscope || 'overall') === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
       return '<span class="hint">Models with all seven scores · tick a model on the left to hide it everywhere</span>';
     case 'explorer':
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
@@ -859,6 +1031,8 @@ function controlsHTML() {
       return `<div class="seg"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}">Minutes per task</button></div>`;
     case 'ledger':
       return '<span class="hint">Click a column heading to sort, click again to reverse</span>';
+    case 'glance': case 'rehelp': case 'effort': case 'general':
+      return `<span class="crumb">☰ More views · ${esc(EXTRA.find((e) => e[0] === state.tab)[1])}</span><span class="hint">Tick a model on the left to hide it here too</span>`;
     default: return '';
   }
 }
@@ -886,7 +1060,9 @@ function render() {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   $('#controls').innerHTML = controlsHTML();
   const f = buildCurrent();
-  $('#stage').innerHTML = `<div class="fig${f.wide ? ' wide' : ''}"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
+  $('#stage').innerHTML = f.html ? `<div class="fig sections">${f.html}</div>`
+    : `<div class="fig${f.wide ? ' wide' : ''}"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
+  renderMenu();
   $('#stage').scrollTop = 0;
   applySpot();
   renderSidebar();
@@ -894,7 +1070,7 @@ function render() {
 }
 function readHash() {
   const [tab, a, b, c] = decodeURIComponent(location.hash.slice(1)).split('/');
-  if (TABS_KEYS.includes(tab)) state.tab = tab;
+  if (TABS_KEYS.includes(tab) || EXTRA_KEYS.includes(tab)) state.tab = tab;
   if (tab === 'explorer') {
     if (SCOPES.some(([k]) => k === a)) state.scope = a;
     if (['score', 'p2p', 'size'].includes(b)) state.mode = b;
@@ -925,6 +1101,7 @@ $('#controls').addEventListener('click', (e) => {
   if (ds.scope) state.scope = ds.scope;
   else if (ds.mode) state.mode = ds.mode;
   else if (ds.review) state.reView = ds.review;
+  else if (ds.pscope) state.pscope = ds.pscope;
   else if (ds.metric) state.metric = ds.metric;
   else if (ds.prof) toggle(state.prof, ds.prof);
   else if (ds.act === 'top3') state.prof = new Set(TOP3());
@@ -932,6 +1109,17 @@ $('#controls').addEventListener('click', (e) => {
   render();
 });
 $('#stage').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-gsort],[data-hsort],[data-asort],[data-emetric],[data-gmetric]');
+  if (b) {
+    const flip = (cur, k, textFirst) => (cur.key === k ? { key: k, dir: -cur.dir } : { key: k, dir: textFirst ? 1 : -1 });
+    const ds = b.dataset;
+    if (ds.gsort) state.gsort = flip(state.gsort, ds.gsort, ds.gsort === 'model');
+    else if (ds.hsort) state.hsort = flip(state.hsort, ds.hsort, ds.hsort === 'model');
+    else if (ds.asort) state.asort = flip(state.asort, ds.asort, ds.asort === 'model');
+    else if (ds.emetric) state.emetric = ds.emetric;
+    else if (ds.gmetric) state.gmetric = ds.gmetric;
+    render(); return;
+  }
   const h = e.target.closest('[data-sortkey]'); if (!h) return;
   const k = h.dataset.sortkey;
   state.sort = state.sort.key === k ? { key: k, dir: -state.sort.dir } : { key: k, dir: ['model', 'effort', 'basis'].includes(k) ? 1 : -1 };
@@ -966,11 +1154,23 @@ $('#stage').addEventListener('mousemove', (e) => {
   tip.style.top = (e.clientY + 18) + 'px';
 });
 $('#stage').addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+/* ☰ menu: every section, the five tabs first, then the extra views */
+function renderMenu() {
+  const item = ([k, l, sub], key) => `<button type="button" data-goto="${k}" class="${state.tab === k ? 'on' : ''}"><b>${esc(l)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}<kbd>${key}</kbd></button>`;
+  $('#menu').innerHTML = `<div class="mhead">Views</div>${TABS.map((t, i) => item(t, i + 1)).join('')}<div class="mhead">More views</div>${EXTRA.map((t, i) => item(t, i + 6)).join('')}`;
+}
+const setMenu = (open) => { $('#menu').hidden = !open; $('#menuBtn').setAttribute('aria-expanded', String(open)); };
+$('#menuBtn').addEventListener('click', (e) => { e.stopPropagation(); setMenu($('#menu').hidden); });
+$('#menu').addEventListener('click', (e) => { const b = e.target.closest('[data-goto]'); if (!b) return; state.tab = b.dataset.goto; setMenu(false); render(); });
+document.addEventListener('click', (e) => { if (!$('#menu').hidden && !e.target.closest('#menu')) setMenu(false); });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { setMenu(false); return; }
   if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
-  const i = '12345'.indexOf(e.key);
-  if (i >= 0) { state.tab = TABS_KEYS[i]; render(); }
+  const i = '123456789'.indexOf(e.key);
+  if (i >= 0) { state.tab = i < 5 ? TABS_KEYS[i] : EXTRA_KEYS[i - 5]; render(); }
 });
+let wasPhone = isPhone();
+addEventListener('resize', () => { if (isPhone() !== wasPhone) { wasPhone = isPhone(); render(); } });
 window.addEventListener('hashchange', () => { readHash(); render(); });
 
 /* ---------- export hooks (used by export-figures.mjs; they ignore the visible filters) ---------- */
