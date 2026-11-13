@@ -1173,6 +1173,14 @@ function render() {
     : `<div class="fig${f.wide ? ' wide' : ''}"><section class="card chart"><header class="chead"><h2>${esc(sentence(fi.title))}</h2><p>${esc(fi.lines[0] || '')}</p>` +
       (fi.lines.length > 1 ? `<details><summary>How to read this chart</summary>${fi.lines.slice(1).map((l) => `<p>${esc(l)}</p>`).join('')}</details>` : '') +
       `</header><svg viewBox="0 ${y0} ${f.W} ${f.H - y0}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></section></div>`;
+  // the crop sits just below the title block; a chart label that reaches above it (the radar's top axis) moves the crop up
+  const svg = !f.html && $('#stage .card.chart svg');
+  if (svg) {
+    let top = y0;
+    const above = [];
+    svg.querySelectorAll('text').forEach((t) => { const bb = t.getBBox(); if (bb.y + bb.height > y0 + 2) { if (bb.y < top) top = bb.y; } else above.push(t); });
+    if (top < y0) { above.forEach((t) => t.remove()); svg.setAttribute('viewBox', `0 ${top - 8} ${f.W} ${f.H - top + 8}`); }
+  }
   renderMenu();
   $('#stage').scrollTop = 0;
   applySpot();
