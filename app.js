@@ -311,7 +311,7 @@ function reStackedFig() {
     'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
     'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Overall uses RE combined only.',
   ];
-  return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE · BLIND / ASSISTED / COMBINED', lines) + body, wide: true };
+  return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE', lines) + body, wide: true };
 }
 
 /* ---------- figure: price to performance (log price vs score) ---------- */
