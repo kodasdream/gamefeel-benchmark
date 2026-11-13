@@ -1322,12 +1322,27 @@ const EXPORTS = [
   { name: 'qwen-highlight-price-performance-overall', build: () => ppFig('overall', NONE, true) },
   { name: 'qwen-highlight-price-performance-re', build: () => ppFig('re', NONE, true) },
   { name: 'qwen-highlight-size-performance-overall', build: () => sizeFig('overall', NONE, true) },
+  // the HTML views from the ☰ menu, all models, default sort
+  { name: 'view-every-score-at-a-glance', build: () => ({ html: glanceHTML({ key: 'avg', dir: -1 }, NONE) }) },
+  { name: 'view-re-blind-vs-assisted', build: () => ({ html: reHelpHTML({ key: 're_combined', dir: -1 }, NONE) }) },
+  { name: 'view-effort-overall', build: () => ({ html: effortHTML('avg', NONE) }) },
+  { name: 'view-effort-re', build: () => ({ html: effortHTML('re', NONE) }) },
+  { name: 'view-general-capability-overall', build: () => ({ html: generalHTML('avg', { key: 'gap', dir: -1 }, NONE) }) },
+  { name: 'view-general-capability-re', build: () => ({ html: generalHTML('re', { key: 'gap', dir: -1 }, NONE) }) },
+  { name: 'view-progress-gci', build: () => ({ html: progressHTML(NONE) }) },
 ];
 window.renderExport = (name) => {
   const e = EXPORTS.find((x) => x.name === name);
   if (!e) throw new Error('unknown export ' + name);
   RE_VIEW = 'combined';   // exports always use the combined RE score, whatever the explorer is showing
+  const keepOpen = state.openOnly; state.openOnly = false;   // exports always show every model
   const f = e.build();
+  state.openOnly = keepOpen;
+  if (f.html) {   // an HTML view: laid out at 1536 CSS px and zoomed 2x, so it is captured 6144 px wide like the rest
+    $('#exportStage').innerHTML = `<div class="fig hexport">${f.html}</div>`;
+    document.body.classList.add('exporting');
+    return { W: 3072, H: Math.round($('#exportStage .fig').getBoundingClientRect().height) };
+  }
   $('#exportStage').innerHTML = `<div class="fig"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
   document.body.classList.add('exporting');
   return { W: f.W, H: f.H };

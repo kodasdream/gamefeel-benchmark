@@ -3,10 +3,10 @@ Qwen-3.7-Plus,Medium,alibaba,Alibaba Qwen,0.03,sub,1M,15,0,120,35,30,30,30,20,20
 Minimax-M3.1-Flash,Max,minimax,MiniMax,0.4,api,1M,135,4,58,20,63,0,10,30,30,0.43,,0.4257,21.9,yes,300,quantization not stated,,29,21.9,2026-10-17
 Muse Spark 1.3-Contributor,Medium,meta,Meta AI,0.8,api,1M,90,0,240,33,50,15,15,25,25,0.39,,0.3861,23.3,no,,,,,23.3,2026-10-17
 gpt-6-auto (astra+luna),High,openai,OpenAI,2.2,sub,1M,90,1,56,62,20,0,30,36,35,0.75,,0.7425,26.2,no,,,,,26.2,2026-10-17
-Space Bunny,Max,opencode,OpenCode,0,free,1M,240,0,140,59,52,3,36,45,50,0.88,,0.8712,35.1,,,,,,35.1,2026-10-17
+Space Bunny,Max,opencode,OpenCode,0,free,1M,240,0,140,59,52,3,36,45,50,0.88,,0.8712,35.1,no,,,,,35.1,2026-10-17
 Gemini 3.8-Flash,Max,google,Google DeepMind,0.8,api,1M,75,0,325,55,55,20,30,37,39,0.93,,0.9207,33.8,no,,,,,33.8,2026-10-17
-Qwen-3.8-Max,XHigh,alibaba,Alibaba Qwen,0.75,sub,1M,15,0,60,56,40,47,41,30,42,6.2,,6.138,37.4,,,,,34,37.4,2026-10-17
-Deepseek V4.1-Flash,Max,deepseek,DeepSeek,0.2,api,1M,45,0,330,62,57,45,34,35,43,1.7,,1.683,39.7,,,,,,39.7,2026-10-17
+Qwen-3.8-Max,XHigh,alibaba,Alibaba Qwen,0.75,sub,1M,15,0,60,56,40,47,41,30,42,6.2,,6.138,37.4,yes,2496,FP8; downloadable weights are text-only,,34,37.4,2026-10-17
+Deepseek V4.1-Flash,Max,deepseek,DeepSeek,0.2,api,1M,45,0,330,62,57,45,34,35,43,1.7,,1.683,39.7,yes,510,FP8 weights (Hugging Face),,,39.7,2026-10-17
 Mimo-V2.6-Pro,Max,xiaomi,Xiaomi,1.2,sub,1M,80,2,48,52,65,35,38,47,41,2.1,,2.079,40,yes,1070,quantization not stated,,30,40,2026-10-17
 Opus-5.5,XHigh,anthropic,Anthropic,2.6,sub,1M,90,0,67,65,65,50,41,63,25,13.36,,13.2264,46,no,,,,57,46,2026-10-17
 Sonnet-5.5,XHigh,anthropic,Anthropic,3.2,sub,1M,90,0,120,63,62,48,39,53,20,7.12,,7.0488,41.7,no,,,,50,41.7,2026-10-17
@@ -23,27 +23,27 @@ Nemotron-3.5-Super-VL,Max,nvidia,NVIDIA,0.01,api,1M,9,0,480,9,2,27,25,25,25,4.32
 Kimi K3.1-Pro,Max,moonshot,Moonshot AI,2.1,api,1M,77,2,73,63,55,10,10,45,27,0.1,,0.099,30,yes,3000,quantization not stated,,46,30,2026-11-07
 Qwen-4-27B-Early? (qoDuck),XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,5.76,,5.7024,43.2,yes,35,quantization not stated,,,43.2,2026-11-07
 Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,9.82,,9.7218,43.1,no,,,,55,43.1,2026-11-07
-Qwen-4-Flash-Early? (qoHawk),Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,11.94,,11.8206,48.7,,,,,,48.7,2026-11-08
-Gpt-6.1-Sol,XHigh,openai,OpenAI,0.26,sub,1M,,,,,,,,,,3.93,,3.8907,,,,,"Semi-private subset of the RE test, 748 tasks",52,,2026-11-08
-Gpt-6.1-Terra,XHigh,openai,OpenAI,0.13,sub,1M,,,,,,,,,,3.71,,3.6729,,,,,"Semi-private subset of the RE test, 748 tasks",45,,2026-11-08
-Gemini-4-Carbon,High,google,Google DeepMind,8.8,api,1M,48,0,180,64,56,51,47,67,33,32.81,55.62,40.0092,51.1,,,,,60,51.1,2026-11-09
-Fable-5.2,Max,anthropic,Anthropic,7.2,sub,1M,102,2,90,71,69,51,42,64,31,20.2,,19.998,49.7,,,,,65,49.7,2026-11-09
-Fable-5.2,Medium,anthropic,Anthropic,0.93,sub,1M,51,1,90,66,66,51,42,64,30,22.94,,22.7106,48.8,,,,,56,48.8,2026-11-09
-Muse Ember,Max,meta,Meta AI,0.04,api,1M,,,,,,,,,,0,,0,,,,,,36,,2026-11-12
-Muse Wonder,Max,meta,Meta AI,2.2,api,1M,,,,,,,,,,0.48,,0.4752,,,,,,44,,2026-11-12
-Qwen-4-Max-Preview (Ali Cloud Nov 10),XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,,,72,,,,,,,5.78,,5.7222,,,,,,,,2026-11-12
-Qwen-4-Max-Preview (Qwen App Nov 11),High,alibaba,Alibaba Qwen,0,free,1M,,,79,,,,,,,8.54,,8.4546,,,,,,,,2026-11-12
-Qwen-4-Max Preview (Qoder Nov 11),XHigh,alibaba,Alibaba Qwen,0.12,sub,1M,,,62,,,,,,,1.05,,1.0395,,,,,,,,2026-11-12
-Qwen-3.8-27B,XHigh,alibaba,Alibaba Qwen,0.06,sub,256K,,,70,,,,,,,0.02,,0.0198,,,,,,20,,2026-11-12
-Gemini-4-Carbon,Low,google,Google DeepMind,2.04,api,1M,,,,,,,,,,11.24,53.2,24.9744,,,,,,54,,2026-11-12
-Gemini-4-Carbon,Medium,google,Google DeepMind,2.13,api,1M,,,,,,,,,,30.25,53.94,37.7652,,,,,,58,,2026-11-12
-Nex N2.6,Max,nex,Nex,0.06,api,256K,,,,,,,,,,1.61,,1.5939,,,,,,,,2026-11-12
-Fable-5.2,High,anthropic,Anthropic,3.16,sub,1M,,,90,69,67,51,42,64,30,22.84,88.08,44.1408,52.4,,,,,62,52.4,2026-11-12
+Qwen-4-Flash-Early? (qoHawk),Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,11.94,,11.8206,48.7,no,,,,,48.7,2026-11-08
+Gpt-6.1-Sol,XHigh,openai,OpenAI,0.26,sub,1M,,,,,,,,,,3.93,,3.8907,,no,,,"Semi-private subset of the RE test, 748 tasks",52,,2026-11-08
+Gpt-6.1-Terra,XHigh,openai,OpenAI,0.13,sub,1M,,,,,,,,,,3.71,,3.6729,,no,,,"Semi-private subset of the RE test, 748 tasks",45,,2026-11-08
+Gemini-4-Carbon,High,google,Google DeepMind,8.8,api,1M,48,0,180,64,56,51,47,67,33,32.81,55.62,40.0092,51.1,no,,,,60,51.1,2026-11-09
+Fable-5.2,Max,anthropic,Anthropic,7.2,sub,1M,102,2,90,71,69,51,42,64,31,20.2,,19.998,49.7,no,,,,65,49.7,2026-11-09
+Fable-5.2,Medium,anthropic,Anthropic,0.93,sub,1M,51,1,90,66,66,51,42,64,30,22.94,,22.7106,48.8,no,,,,56,48.8,2026-11-09
+Muse Ember,Max,meta,Meta AI,0.04,api,1M,,,,,,,,,,0,,0,,no,,,,36,,2026-11-12
+Muse Wonder,Max,meta,Meta AI,2.2,api,1M,,,,,,,,,,0.48,,0.4752,,no,,,,44,,2026-11-12
+Qwen-4-Max-Preview (Ali Cloud Nov 10),XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,,,72,,,,,,,5.78,,5.7222,,no,,,,,,2026-11-12
+Qwen-4-Max-Preview (Qwen App Nov 11),High,alibaba,Alibaba Qwen,0,free,1M,,,79,,,,,,,8.54,,8.4546,,no,,,,,,2026-11-12
+Qwen-4-Max Preview (Qoder Nov 11),XHigh,alibaba,Alibaba Qwen,0.12,sub,1M,,,62,,,,,,,1.05,,1.0395,,no,,,,,,2026-11-12
+Qwen-3.8-27B,XHigh,alibaba,Alibaba Qwen,0.06,sub,256K,,,70,,,,,,,0.02,,0.0198,,yes,55.6,BF16,,20,,2026-11-12
+Gemini-4-Carbon,Low,google,Google DeepMind,2.04,api,1M,,,,,,,,,,11.24,53.2,24.9744,,no,,,,54,,2026-11-12
+Gemini-4-Carbon,Medium,google,Google DeepMind,2.13,api,1M,,,,,,,,,,30.25,53.94,37.7652,,no,,,,58,,2026-11-12
+Nex N2.6,Max,nex,Nex,0.06,api,256K,,,,,,,,,,1.61,,1.5939,,yes,321,FP8,,,,2026-11-12
+Fable-5.2,High,anthropic,Anthropic,3.16,sub,1M,,,90,69,67,51,42,64,30,22.84,88.08,44.1408,52.4,no,,,,62,52.4,2026-11-12
 Sonus2,,sonus,SonusLab,,,,,,,,,,,,,8.19,,8.1081,,,,,,,,2026-11-12
-Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,,,,,560,,,,,,,4.91,6.6,5.4186,,,,,,,,2026-11-12
-Raon-1-Mini Preview,,raon,Raon AI,,,,,,,,,,,,,0,0,0,,,,,,,,2026-11-12
-Glyph Cluster,,glyph,Glyph,,,,,,,,,,,,,1.47,,1.4553,,,,,,,,2026-11-12
-OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,1.16,,1.1484,,,,,,,,2026-11-12
-Nemotron-3-Ultra 550B,,nvidia,NVIDIA,,,,,,,,,,,,,0.89,,0.8811,,,,,,12,,2026-11-12
-Beam 1.0,,beam,Beam,,,,,,,,,,,,,0.76,,0.7524,,,,,,18,,2026-11-12
-Bonsai-2-27B,,bonsai,Bonsai,,,,,,,,,,,,,0.02,,0.0198,,,,,,,,2026-11-12
+Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,,,,,560,,,,,,,4.91,6.6,5.4186,,no,,,,,,2026-11-12
+Raon-1-Mini Preview,,raon,Raon AI,,,,,,,,,,,,,0,0,0,,yes,57.6,"BF16, 28.8B params (computed)",,,,2026-11-12
+Glyph Cluster,,glyph,Glyph,,,,,,,,,,,,,1.47,,1.4553,,no,,,,,,2026-11-12
+OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,1.16,,1.1484,,no,,,,,,2026-11-12
+Nemotron-3-Ultra 550B,,nvidia,NVIDIA,,,,,,,,,,,,,0.89,,0.8811,,yes,1100,"BF16, 550B params (computed)",,12,,2026-11-12
+Beam 1.0,,beam,Beam,,,,,,,,,,,,,0.76,,0.7524,,yes,1003,"BF16, 501B params (computed)",,18,,2026-11-12
+Bonsai-2-27B,,bonsai,Bonsai,,,,,,,,,,,,,0.02,,0.0198,,yes,5.9,ternary,,,,2026-11-12

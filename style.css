@@ -101,6 +101,9 @@ aside.side { border-right: 1px solid var(--line); background: rgba(255,255,255,.
 /* ---------- export capture (unchanged: 3072 CSS px -> 6144 px) ---------- */
 #exportStage { position: fixed; left: 0; top: 0; width: 3072px; display: none; background: var(--bg); }
 #exportStage .fig { width: 3072px; animation: none; }
+#exportStage .fig.hexport { width: 1536px; zoom: 2; padding: 24px; background: var(--bg); }
+#exportStage .hexport .card { box-shadow: none; }
+#exportStage .hexport table.hm th { position: static; }
 body.exporting #app { display: none; }
 body.exporting #exportStage { display: block; }
 .notice { font-size: 18px; font-weight: 600; color: var(--ink-soft); padding: 60px 0; text-align: center; }
