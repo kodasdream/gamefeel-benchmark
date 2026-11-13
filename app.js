@@ -72,10 +72,11 @@ const SCORE_KEYS = ['create', 'bugfix', 'gamefeel', 'ideas', 'visuals', 'audio',
 const SCOPES = [
   ['overall', 'Overall'], ['create', 'Coding · create'], ['bugfix', 'Coding · bugfix'], ['gamefeel', 'Gamefeel'],
   ['ideas', 'Creativity · ideas'], ['visuals', 'Creativity · visuals'], ['audio', 'Creativity · audio'],
-  ['re', 'Gamefeel · RE (combined)'],
+  ['re', 'Gamefeel · RE'],
 ];
 const SCOPE_LABEL = Object.fromEntries(SCOPES);
-const SUBCATEGORY_LIST = SCOPES.slice(1).map(([, l]) => l).join(', ');   // the seven subcategories the overall averages
+// Overall averages RE combined only — the explorer's RE view toggle (blind/assisted) never changes that.
+const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (combined)` : l)).join(', ');   // the seven subcategories the overall averages
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
@@ -108,9 +109,15 @@ function deriveFields() {
     d.value = d.avg != null && d.price > 0 ? Math.round((d.avg / d.price) * 10) / 10 : null;
   });
 }
-// Overall only ranks models with all seven scores (six scores plus Gamefeel RE). Subcategories rank any model with that score.
-const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null) : (d[scope] ?? null));
-const priceText = (d) => (d.price == null ? 'no price given' : d.free ? 'free' : `$${d.price.toFixed(2)}/task · ${BASIS_WORD[d.basis] || d.basis}`);
+// Overall only ranks models with all seven scores (six scores plus Gamefeel RE combined). Subcategories rank any model with that score.
+// The explorer's RE section can toggle between combined / blind / assisted. RE_VIEW is set by render() for that
+// view only; renderExport() resets it to 'combined', so exports and every other tab always use the combined score.
+const RE_VIEWS = ['combined', 'blind', 'assisted'];
+const RE_FIELD = { combined: 're_combined', blind: 're_blind', assisted: 're_assisted' };
+let RE_VIEW = 'combined';
+const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
+  : scope === 're' ? (d[RE_FIELD[RE_VIEW]] ?? null) : (d[scope] ?? null));
+const priceText = (d) => (d.price == null ? 'no price given' : d.free ? 'free' : `$${d.price.toFixed(2)}/task${d.basis ? ` · ${BASIS_WORD[d.basis] || d.basis}` : ''}`);
 const priceLabel = (d) => (d.price == null ? 'no price' : d.free ? 'free' : `$${d.price.toFixed(2)}`);   // under a column
 // A result from the semi-private subset of the RE test has a note (workbook column V) and an asterisk.
 const shortName = (d) => d.model + (d.reNote ? '*' : '');
@@ -120,6 +127,32 @@ const RE_FULL = 'Every other result is the full RE test, over 8,000 tasks.';
 const reFootnote = (rows) => `* ${namesOf(rows)}: ${[...new Set(rows.map((d) => d.reNote))].join('; ')}. ${RE_FULL}`;
 const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
 const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
+const figTitle = (s) => (s === 're' ? `GAMEFEEL · RE (${RE_VIEW.toUpperCase()})` : scopeTitle(s));
+const RE_TIP = {
+  combined: '66% blind + 33% assisted — the score Overall uses',
+  blind: 'No worked examples shown — the model rates the proposals cold',
+  assisted: 'The model studies 39 rated worked examples before rating the rest',
+};
+const RE_LINES = {
+  combined: [
+    'Gamefeel Reverse-Evaluation (RE) combined score: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
+    'Combined = 66% blind + 33% assisted; assisted results get 39 rated examples to calibrate their feedback. Overall uses RE combined.',
+    'A result with no assisted score gets a 1.5x boost on its blind share: combined = 0.66 × blind × 1.5 = 99% of blind, so it can still rank overall.',
+  ],
+  blind: [
+    'Gamefeel Reverse-Evaluation (RE) blind score: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
+    'Blind: no worked examples shown — the model rates the game proposals cold. Overall uses RE combined, not this view.',
+  ],
+  assisted: [
+    'Gamefeel Reverse-Evaluation (RE) assisted score: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
+    'Assisted: the model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest. Overall uses RE combined, not this view.',
+  ],
+};
+const reContextLine = () => (RE_VIEW === 'combined'
+  ? 'Score = RE combined (66% blind + 33% assisted; a blind-only result gets a 1.5x boost on its 66% share). Overall uses this score.'
+  : RE_VIEW === 'blind'
+    ? 'Score = RE blind (no worked examples shown). Overall uses RE combined, not this view.'
+    : 'Score = RE assisted (39 rated worked examples studied first). Overall uses RE combined, not this view.');
 
 /* ---------- drawing helpers ---------- */
 function iconSvg(d, x, y, size) {
@@ -230,20 +263,20 @@ function overviewFig(hidden) {
 function scoresFig(scope, hidden) {
   let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
+  const total = rows.length;
   if (scope === 're') rows = rows.slice(0, 25);   // match the RE export: keep the most relevant results so value labels don't collide
+  const countNote = total > rows.length ? `Showing the top ${rows.length} of ${total} results.` : `Showing all ${total} results.`;
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
     ? [`Average of: ${SUBCATEGORY_LIST}`]
     : scope === 're'
-      ? ['Gamefeel Reverse-Evaluation (RE) combined score: the model\'s ability to give feedback on game proposals, especially balancing feedback.',
-         'Combined = 66% blind + 33% assisted; assisted results get 39 rated examples to calibrate their feedback. Overall uses RE combined.',
-         'The scale runs from 0 to the best score on this chart. Price per task is under each column. Showing the top 25 results.']
+      ? [...RE_LINES[RE_VIEW], `The scale runs from 0 to the best score on this chart. Price per task is under each column. ${countNote}`]
       : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
   // best on the right: the columns run from the lowest score on the left to the best on the right
   const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
     { top: TOP, ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1), unit: 'score', empty: 'No model is shown for this view.' });
   const H = chart.H;
-  let body = frame(WC, H, `${scopeTitle(scope)} · SCORES`, lines) + chart.body;
+  let body = frame(WC, H, `${figTitle(scope)} · SCORES`, lines) + chart.body;
   if (partial.length) {
     body += `<text x="64" y="${H - 40}" font-size="20" font-weight="600" fill="${C.soft}">Not in overall (partial record): ${esc(partial.map((d) => `${d.model} ${d.effort}`).join(' · '))}. They appear in each subcategory they have a score in.</text>`;
   }
@@ -426,11 +459,12 @@ function purpleMarks(items, placed) {   // the purple lines and labels; the seco
 function ppFig(scope, hidden, highlight = false) {
   const L = 170, R = WP - 80, T = TOP + 30;
   const hl = highlight && HIGHLIGHT_SCOPES.has(scope);   // the Qwen highlight figure: Qwen off the blue line, measured in purple
-  const title = `${scopeTitle(scope)} · PRICE TO PERFORMANCE${hl ? ` · ${HIGHLIGHT_TITLE}` : ''}`;
+  const title = `${figTitle(scope)} · PRICE TO PERFORMANCE${hl ? ` · ${HIGHLIGHT_TITLE}` : ''}`;
   const lines = [
     'Price per task against score, log scale. Up and to the left is cheaper and higher.',
     'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
   ];
+  if (scope === 're') lines.push(reContextLine());
   if (hl) lines.push(`${HIGHLIGHT_NAMES} are left off the blue line, so the purple lines can measure each against that line.`);
   const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price != null);
   const unpriced = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price == null);
@@ -547,11 +581,12 @@ function wrapText(t, size, weight, maxW) {
 
 /* ---------- figure: size to performance (log model size vs score; open-weight models with a size only) ---------- */
 function sizeFig(scope, hidden, highlight = false) {
-  const title = `${scopeTitle(scope)} · SIZE TO PERFORMANCE${highlight ? ` · ${HIGHLIGHT_TITLE}` : ''}`;
+  const title = `${figTitle(scope)} · SIZE TO PERFORMANCE${highlight ? ` · ${HIGHLIGHT_TITLE}` : ''}`;
   const lines = [
     'Model size against score, log scale. Up and to the left is smaller and higher.',
     'Open-weight models with a recorded size only. Blue ring and line: pareto frontier, no model on it is both smaller and higher.',
   ];
+  if (scope === 're') lines.push(reContextLine());
   if (highlight) lines.push(`${HIGHLIGHT_NAMES} are left off the blue line (purple rings), so the purple lines measure each against the line only where the line reaches it.`);
   const shown = DATA.filter((d) => !hidden.has(d.id) && d.openWeights && d.size != null && scoreOf(d, scope) != null);
   if (!shown.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No open-weight model with a size is shown for this view.') };
@@ -775,7 +810,7 @@ function ledgerFig(sort, hidden) {
 const TABS_KEYS = TABS.map((t) => t[0]);
 const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
 const state = {
-  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps',
+  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
 };
 
@@ -796,7 +831,8 @@ function controlsHTML() {
       return '<span class="hint">Models with all seven scores · tick a model on the left to hide it everywhere</span>';
     case 'explorer':
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
-        `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+        `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>` +
+        (state.scope === 're' ? `<span class="re-view-wrap"><span class="seg-cap">RE score</span><div class="seg seg-re" role="group" aria-label="RE score view">${RE_VIEWS.map((v) => `<button type="button" data-review="${v}" class="${state.reView === v ? 'on' : ''}" aria-pressed="${state.reView === v}" title="${esc(RE_TIP[v])}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></span>` : '');
     case 'profiles':
       return DATA.filter((d) => d.complete).map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
         '<button type="button" class="chip plain" data-act="top3">reset to top 3</button>';
@@ -826,6 +862,8 @@ function renderSidebar() {
   $('#shown').textContent = `${DATA.length - state.hidden.size} of ${DATA.length} shown`;
 }
 function render() {
+  // the RE view toggle applies to the explorer's RE section only; every other tab and view uses combined
+  RE_VIEW = state.tab === 'explorer' && state.scope === 're' ? state.reView : 'combined';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   $('#controls').innerHTML = controlsHTML();
   const f = buildCurrent();
@@ -836,17 +874,21 @@ function render() {
   writeHash();
 }
 function readHash() {
-  const [tab, a, b] = decodeURIComponent(location.hash.slice(1)).split('/');
+  const [tab, a, b, c] = decodeURIComponent(location.hash.slice(1)).split('/');
   if (TABS_KEYS.includes(tab)) state.tab = tab;
   if (tab === 'explorer') {
     if (SCOPES.some(([k]) => k === a)) state.scope = a;
     if (['score', 'p2p', 'size'].includes(b)) state.mode = b;
+    if (a === 're') state.reView = RE_VIEWS.includes(c) ? c : 'combined';
   }
   if (tab === 'speed' && (a === 'min' || a === 'tps')) state.metric = a;
 }
 function writeHash() {
   let h = state.tab;
-  if (state.tab === 'explorer') h += `/${state.scope}/${state.mode}`;
+  if (state.tab === 'explorer') {
+    h += `/${state.scope}/${state.mode}`;
+    if (state.scope === 're' && state.reView !== 'combined') h += `/${state.reView}`;
+  }
   if (state.tab === 'speed') h += `/${state.metric}`;
   history.replaceState(null, '', `#${h}`);
 }
@@ -863,6 +905,7 @@ $('#controls').addEventListener('click', (e) => {
   const ds = b.dataset;
   if (ds.scope) state.scope = ds.scope;
   else if (ds.mode) state.mode = ds.mode;
+  else if (ds.review) state.reView = ds.review;
   else if (ds.metric) state.metric = ds.metric;
   else if (ds.prof) toggle(state.prof, ds.prof);
   else if (ds.act === 'top3') state.prof = new Set(TOP3());
@@ -931,6 +974,7 @@ const EXPORTS = [
 window.renderExport = (name) => {
   const e = EXPORTS.find((x) => x.name === name);
   if (!e) throw new Error('unknown export ' + name);
+  RE_VIEW = 'combined';   // exports always use the combined RE score, whatever the explorer is showing
   const f = e.build();
   $('#exportStage').innerHTML = `<div class="fig"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
   document.body.classList.add('exporting');

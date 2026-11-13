@@ -78,6 +78,10 @@ aside.side { border-right: 1px solid var(--line); background: rgba(255,255,255,.
 .seg { display: inline-flex; background: var(--track); border-radius: 999px; padding: 3px; gap: 2px; }
 .seg button { border: 0; background: transparent; border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 800; color: var(--ink-soft); cursor: pointer; white-space: nowrap; transition: background .12s, color .12s; }
 .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 5px rgba(88,106,140,.14); }
+.seg button:focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; }
+.re-view-wrap { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; }
+.seg-cap { font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--ink-faint); }
+.seg-re button.on { background: var(--azure); color: #fff; box-shadow: 0 1px 6px rgba(43,108,238,.35); }
 .hint { font-size: 12.5px; color: var(--ink-faint); font-weight: 600; margin-left: auto; }
 
 /* ---------- stage: figures scale to fit the viewport ---------- */
@@ -117,6 +121,10 @@ body.exporting #exportStage { display: block; }
   .tabs kbd { display: none; }
   aside.side { max-height: 320px; border-right: 0; border-bottom: 1px solid var(--line); }
   .controls { padding: 10px 14px 4px; }
+  .controls .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .controls .seg::-webkit-scrollbar { display: none; }
+  .re-view-wrap { max-width: 100%; }
+  .re-view-wrap .seg { min-width: 0; flex: 0 1 auto; }
   .stage { overflow: visible; padding: 10px 12px 20px; }
   .fig { width: 100%; }
   .hint { display: none; }
