@@ -47,4 +47,4 @@ OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,1.16,,1.1484,,no,,,,,,2026-11-12
 Nemotron-3-Ultra 550B,,nvidia,NVIDIA,,,,,,,,,,,,,0.89,,0.8811,,yes,1100,"BF16, 550B params (computed)",,12,,2026-11-12
 Beam 1.0,,beam,Beam,,,,,,,,,,,,,0.76,,0.7524,,yes,1003,"BF16, 501B params (computed)",,18,,2026-11-12
 Bonsai-2-27B,,bonsai,Bonsai,,,,,,,,,,,,,0.02,,0.0198,,yes,5.9,ternary,,,,2026-11-12
-Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,,,440,,,,,,,15.05,56.63,28.6209,,no,,,,,,2026-11-13
+Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,,,440,,,,,,,15.05,56.63,28.6209,,no,,,,53,,2026-11-13
