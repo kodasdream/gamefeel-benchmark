@@ -166,7 +166,9 @@ function iconHTML(d) {
   const ic = ICONS[d.icon] || ICONS.unknown;
   return `<span class="mico" style="color:${d.tint}"><svg viewBox="${ic.vb}" fill="currentColor" aria-hidden="true">${ic.inner}</svg></span>`;
 }
+let FRAME_INFO = null;   // PROPOSAL: the last figure's title block, so the app can show it as an HTML header
 function frame(w, h, title, lines) {
+  FRAME_INFO = { title, lines, y: 188 + 36 * lines.length - 6 };
   let s = `<rect width="${w}" height="${h}" rx="36" fill="#ffffff"/>`;
   s += `<text x="64" y="74" font-size="22" font-weight="700" letter-spacing="5" fill="${C.faint}">THE GAMEFEEL BENCHMARK${standardTag()}</text>`;
   s += `<text x="64" y="140" font-size="60" font-weight="800" fill="${C.ink}">${esc(title)}</text>`;
@@ -519,21 +521,6 @@ function ppFig(scope, hidden, highlight = false) {
   const X = (v) => L + ((Math.log10(v) - Math.log10(x0)) / (Math.log10(x1) - Math.log10(x0))) * (R - L);
   const Y = (v) => B - ((v - y0) / (y1 - y0)) * (B - T);
   let s = '';
-
-  // iso-value curves: score = k * price, i.e. k points per dollar
-  const ratios = rows.map((d) => scoreOf(d, scope) / d.px);
-  const lo = Math.min(...ratios) / 2, hi = Math.max(...ratios) * 2;
-  for (const k of [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].filter((k) => k >= lo && k <= hi)) {
-    let p = '';
-    for (let i = 0; i <= 80; i++) {
-      const pr = x0 * Math.pow(x1 / x0, i / 80), sc = k * pr;
-      if (sc >= y0 && sc <= y1) p += (p ? 'L' : 'M') + X(pr).toFixed(1) + ' ' + Y(sc).toFixed(1);
-    }
-    if (!p) continue;
-    s += `<path d="${p}" fill="none" stroke="${C.gold}" stroke-opacity=".4" stroke-width="2.5" stroke-dasharray="6 9"/>`;
-    const ex = Math.min(x1, y1 / k), ey = k * ex;
-    if (ex >= x0 && ey >= y0) s += `<text x="${(X(ex) + 10).toFixed(1)}" y="${(Y(ey) - 10).toFixed(1)}" font-size="17" font-weight="700" fill="${C.gold}" fill-opacity=".85">${k} pts/$</text>`;
-  }
 
   // axes and grid
   s += `<line x1="${L}" y1="${B}" x2="${R}" y2="${B}" stroke="${C.ink}" stroke-opacity=".2" stroke-width="2"/>`;
@@ -1180,8 +1167,12 @@ function render() {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   $('#controls').innerHTML = `<div class="seg seg-open" role="group" aria-label="Which models"><button type="button" data-open-only="0" class="${state.openOnly ? '' : 'on'}">All models</button><button type="button" data-open-only="1" class="${state.openOnly ? 'on' : ''}">Open weights</button></div>` + controlsHTML();
   const f = buildCurrent();
+  const sentence = (t) => { const x = t.toLowerCase().replace(/\bre\b/g, 'RE').replace(/\bgci\b/g, 'GCI'); return x[0].toUpperCase() + x.slice(1); };
+  const fi = FRAME_INFO, y0 = fi ? fi.y : 0;
   $('#stage').innerHTML = f.html ? `<div class="fig sections">${f.html}</div>`
-    : `<div class="fig${f.wide ? ' wide' : ''}"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
+    : `<div class="fig${f.wide ? ' wide' : ''}"><section class="card chart"><header class="chead"><h2>${esc(sentence(fi.title))}</h2><p>${esc(fi.lines[0] || '')}</p>` +
+      (fi.lines.length > 1 ? `<details><summary>How to read this chart</summary>${fi.lines.slice(1).map((l) => `<p>${esc(l)}</p>`).join('')}</details>` : '') +
+      `</header><svg viewBox="0 ${y0} ${f.W} ${f.H - y0}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></section></div>`;
   renderMenu();
   $('#stage').scrollTop = 0;
   applySpot();
