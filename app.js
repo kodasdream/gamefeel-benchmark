@@ -87,6 +87,10 @@ const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
 const NEW_MODELS = ['Gemini-4-Hydrogen'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => NEW_MODELS.includes(d.model);
+const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
+const WARN_C = '#f08c00';
+const warnSvg = (cx, base, h = 34) => { const w = h * 1.12, r = (v) => v.toFixed(1); return `<path d="M${r(cx)} ${r(base - h)}L${r(cx + w / 2)} ${r(base)}H${r(cx - w / 2)}Z" fill="#fff" stroke="${WARN_C}" stroke-width="3.5" stroke-linejoin="round"/><text x="${r(cx)}" y="${r(base - 6)}" font-size="${r(h * 0.62)}" font-weight="900" text-anchor="middle" fill="${WARN_C}">!</text>`; };
+const warnHTML = '<span class="warnb" aria-label="warning">!</span>';
 const W = 1600;                    // figure width (ledger uses WL)
 const WC = 2600;                   // bar charts: 24 columns side by side, wide enough for chunky bars
 const WL = 2480;
@@ -229,6 +233,7 @@ function columnChart(items, o) {
     s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
     s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="${vFont.toFixed(1)}" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
     if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(top - 52).toFixed(1)}" font-size="20" font-weight="800" letter-spacing="1" text-anchor="middle" fill="${d.tint}">NEW!</text>`;
+    if (isWarn(d)) s += warnSvg(cx, top - (isNew(d) ? 82 : 54));
     s += iconSvg(d, (cx - iSize / 2).toFixed(1), yB + 20, iSize);
     s += `<text x="${cx.toFixed(1)}" y="${yB + 92}" font-size="${sFont.toFixed(1)}" font-weight="700" text-anchor="middle" fill="${C.soft}">${esc(d.effort)}</text>`;
     s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="${sFont.toFixed(1)}" font-weight="600" text-anchor="middle" fill="${C.soft}">${priceLabel(d)}</text>`;
@@ -572,6 +577,7 @@ function ppFig(scope, hidden, highlight = false) {
     if (front.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
     s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="26" fill="${d.tint}" fill-opacity=".15"/>`;
     s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${d.tint}"/>`;
+    if (isWarn(d)) s += warnSvg(p.x, p.y - 34, 30);
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
     s += iconSvg(d, p.iconX, p.ly - 20, 40);
     s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan></text>`;
@@ -670,6 +676,7 @@ function sizeFig(scope, hidden, highlight = false) {
     if (qs.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.purple}" stroke-width="5"/>`;
     s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="26" fill="${d.tint}" fill-opacity=".15"/>`;
     s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${d.tint}"/>`;
+    if (isWarn(d)) s += warnSvg(p.x, p.y - 34, 30);
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
     s += iconSvg(d, p.iconX, p.ly - 20, 40);
     s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan> <tspan font-weight="600" fill="${C.soft}">${d.size} GB</tspan></text>`;
@@ -835,7 +842,7 @@ const EXTRA_KEYS = EXTRA.map((e) => e[0]);
 const isPhone = () => matchMedia('(max-width: 700px)').matches;
 const GLANCE_COLS = [['create', 'Create'], ['bugfix', 'Bugfix'], ['gamefeel', 'Gamefeel'], ['ideas', 'Ideas'],
   ['visuals', 'Visuals'], ['audio', 'Audio'], ['re', 'RE'], ['avg', 'Overall']];
-const nameCell = (d) => `${iconHTML(d)}<span class="nm"><b>${esc(shortName(d))}</b>${d.effort ? `<small>${esc(d.effort)}</small>` : ''}${isNew(d) ? `<span class="newb" style="background:${d.tint}">NEW</span>` : ''}</span>`;
+const nameCell = (d) => `${iconHTML(d)}<span class="nm"><b>${esc(shortName(d))}</b>${d.effort ? `<small>${esc(d.effort)}</small>` : ''}${isNew(d) ? `<span class="newb" style="background:${d.tint}">NEW</span>` : ''}${isWarn(d) ? warnHTML : ''}</span>`;
 const card = (title, sub, inner, foot = '') => `<section class="card"><div class="kick">THE GAMEFEEL BENCHMARK${standardTag()}</div><h2>${esc(title)}</h2>` +
   `${sub ? `<p class="sub">${sub}</p>` : ''}${inner}${foot ? `<p class="foot">${foot}</p>` : ''}</section>`;
 const sortBy = (rows, key, dir, val = (d, k) => d[k]) => [...rows].sort((a, b) => {
@@ -1043,7 +1050,7 @@ function progressHTML(hidden) {
 /* ---------- overview: a tile per view, each with a small live preview; a click opens the view ---------- */
 const miniBars = (rows, val, fmt = fmtScore, n = 4) => {
   const top = rows.slice(0, n), max = top.length ? Math.max(...top.map(val)) || 1 : 1;
-  return `<ol class="mini">${top.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><i style="width:${Math.max(3, (val(d) / max) * 100).toFixed(0)}%;background:${d.tint}"></i><em>${fmt(val(d))}</em></li>`).join('')}</ol>`;
+  return `<ol class="mini">${top.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b>${isWarn(d) ? warnHTML : ''}</span><i style="width:${Math.max(3, (val(d) / max) * 100).toFixed(0)}%;background:${d.tint}"></i><em>${fmt(val(d))}</em></li>`).join('')}</ol>`;
 };
 function miniScatter(rows, xv, yv, logX = true) {
   if (rows.length < 2) return '';
