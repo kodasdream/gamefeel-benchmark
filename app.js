@@ -1006,58 +1006,51 @@ function generalHTML(metric, sort, hidden) {
 function progressHTML(hidden) {
   const rows = DATA.filter((d) => !hidden.has(d.id) && d.gci != null && d.firstSeen).sort((a, b) => a.firstSeen.localeCompare(b.firstSeen) || b.gci - a.gci);
   if (rows.length < 2) return card('Progress over time', '', '<p class="sub">Not enough models with a GCI are shown.</p>');
-  const t = (s) => Date.parse(s + 'T00:00:00Z'), DAY = 864e5;
-  const fmtDay = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  // the record holders: each time a new best arrives, overall and among open-weight models
-  const records = (list) => { let best = -Infinity; return list.filter((d) => (d.gci > best ? ((best = d.gci), true) : false)); };
-  const recAll = records(rows), recOpen = state.openOnly ? [] : records(rows.filter((d) => d.openWeights));
-  const marks = [...recAll.map((d) => ['all', d]), ...recOpen.map((d) => ['open', d])].sort((a, b) => a[1].firstSeen.localeCompare(b[1].firstSeen) || (a[0] === 'all' ? -1 : 1));
-  marks.forEach((m, i) => { m.n = i + 1; });
-
-  // stat strip
-  const top = recAll[recAll.length - 1], first = recAll[0], topOpen = recOpen[recOpen.length - 1];
-  const stat = (label, value, sub) => `<div class="stat"><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
-  const stats = `<div class="stats">${stat('Best GCI', top.gci.toFixed(1), esc(modelEffort(top)))}` +
-    (topOpen ? stat('Best open weights', topOpen.gci.toFixed(1), esc(modelEffort(topOpen))) : '') +
-    stat(`Since ${fmtDay(t(first.firstSeen))}`, `+${(top.gci - first.gci).toFixed(1)}`, `${recAll.length - 1} new records`) +
-    stat('Models with a GCI', String(rows.length), state.openOnly ? 'open weights only' : 'all seven scores in') + '</div>';
-
-  // chart
-  const ph = isPhone(), W = ph ? 690 : 820, H = ph ? 440 : 380, L = 44, R = W - (ph ? 16 : 24), T = 18, B = H - 34;
-  const d0 = t(rows[0].firstSeen) - 3 * DAY, d1 = Math.max(Date.now(), t(rows[rows.length - 1].firstSeen)) + 3 * DAY;
-  const g = rows.map((d) => d.gci), y0 = Math.max(0, Math.floor((Math.min(...g) - 2) / 10) * 10), y1 = Math.ceil((Math.max(...g) + 4) / 10) * 10;
+  const t = (s) => Date.parse(s + 'T00:00:00Z');
+  const days = rows.map((d) => t(d.firstSeen)), d0 = Math.min(...days) - 2 * 864e5, d1 = Math.max(Date.now(), Math.max(...days)) + 2 * 864e5;
+  const ph = isPhone(), W = ph ? 690 : 1000, H = ph ? 520 : 540, L = 56, R = W - (ph ? 24 : 200), T = 24, B = H - 52;
+  const g = rows.map((d) => d.gci), y0 = Math.max(0, Math.floor((Math.min(...g) - 4) / 5) * 5), y1 = Math.ceil((Math.max(...g) + 4) / 5) * 5;
   const X = (ms) => L + ((ms - d0) / (d1 - d0)) * (R - L), Y = (v) => B - ((v - y0) / (y1 - y0)) * (B - T);
   let s = '';
-  for (let v = y0; v <= y1; v += 10) s += `<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${L - 10}" y="${Y(v) + 4}" class="ax" text-anchor="end">${v}</text>`;
-  for (let ms = Math.ceil(d0 / (7 * DAY)) * 7 * DAY; ms <= d1; ms += 7 * DAY) s += `<text x="${X(ms)}" y="${B + 24}" class="ax" text-anchor="middle">${fmtDay(ms)}</text>`;
-  const stepPath = (recs) => recs.map((d, i) => (i ? `H${X(t(d.firstSeen)).toFixed(1)}V${Y(d.gci).toFixed(1)}` : `M${X(t(d.firstSeen)).toFixed(1)} ${Y(d.gci).toFixed(1)}`)).join('') + `H${R}`;
-  const pAll = stepPath(recAll);
-  s += `<path d="${pAll}V${B}H${X(t(recAll[0].firstSeen)).toFixed(1)}Z" fill="${C.azure}" fill-opacity=".06"/>`;
-  s += `<path d="${pAll}" fill="none" stroke="${C.azure}" stroke-width="2.5" stroke-linejoin="round"/>`;
-  if (recOpen.length) s += `<path d="${stepPath(recOpen)}" fill="none" stroke="var(--good)" stroke-width="2.5" stroke-dasharray="7 5" stroke-linejoin="round"/>`;
+  for (let v = y0; v <= y1; v += 5) s += `<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${L - 10}" y="${Y(v) + 4}" class="ax" text-anchor="end">${v}</text>`;
+  for (let ms = Math.ceil(d0 / (7 * 864e5)) * 7 * 864e5; ms <= d1; ms += 7 * 864e5) {
+    s += `<text x="${X(ms)}" y="${B + 22}" class="ax" text-anchor="middle">${new Date(ms).toISOString().slice(5, 10)}</text>`;
+  }
+  // best GCI so far, as a step line: one for every model shown, one for open weights only
+  const steps = (list, color, dash, label) => {
+    let best = -Infinity, path = '', recs = [];
+    list.forEach((d) => { if (d.gci > best) { const x = X(t(d.firstSeen)); path += path ? `H${x.toFixed(1)}V${Y(d.gci).toFixed(1)}` : `M${x.toFixed(1)} ${Y(d.gci).toFixed(1)}`; best = d.gci; recs.push(d); } });
+    if (!path) return { s: '', recs };
+    path += `H${X(d1).toFixed(1)}`;
+    return { s: `<path d="${path}" fill="none" stroke="${color}" stroke-width="3" ${dash ? `stroke-dasharray="${dash}"` : ''}/><text x="${R + 8}" y="${Y(best) + 4}" class="lbl" style="fill:${color}">${ph ? '' : label + ' ' + best.toFixed(1)}</text>`, recs };
+  };
+  const all = steps(rows, C.azure, '', 'best');
+  const open = state.openOnly ? { s: '', recs: [] } : steps(rows.filter((d) => d.openWeights), 'var(--good)', '9 6', 'best open');
+  s += all.s + open.s;
+  const boxes = [];   // record labels already placed: a new one moves down (then up) until it is clear of them
+  const place = (x, y, text) => {
+    const w = textW(text, 11, 700) + 6;
+    for (let k = 0; k < 14; k++) {
+      const yy = y + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 15;
+      const b = { x0: x, x1: x + w, y0: yy - 11, y1: yy + 3 };
+      if (!boxes.some((o) => o.x0 < b.x1 && b.x0 < o.x1 && o.y0 < b.y1 && b.y0 < o.y1) && b.x1 < W - 4) { boxes.push(b); return yy; }
+    }
+    return null;
+  };
   rows.forEach((d) => {
-    s += `<circle data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · GCI ${d.gci.toFixed(1)} · first in the data ${fmtDay(t(d.firstSeen))}${d.openWeights ? ' · open weights' : ''}`)}" cx="${X(t(d.firstSeen)).toFixed(1)}" cy="${Y(d.gci).toFixed(1)}" r="4.5" fill="${d.tint}" fill-opacity=".55"/>`;
+    const rec = all.recs.includes(d) || open.recs.includes(d);
+    const ly = rec && !ph ? place(X(t(d.firstSeen)) + 10, Y(d.gci) - 9, modelEffort(d)) : null;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · GCI ${d.gci.toFixed(1)} · first in the data ${d.firstSeen}${d.openWeights ? ' · open weights' : ''}`)}">` +
+      `<circle cx="${X(t(d.firstSeen)).toFixed(1)}" cy="${Y(d.gci).toFixed(1)}" r="${rec ? 7 : 5}" fill="${d.tint}" ${d.openWeights ? '' : 'fill-opacity=".85"'} stroke="#fff" stroke-width="1.5"/>` +
+      (ly != null ? `<text x="${X(t(d.firstSeen)) + 10}" y="${ly}" class="tiny">${esc(modelEffort(d))}</text>` : '') + '</g>';
   });
-  // numbered record markers; a marker that would sit on another moves up
-  const placed = [];
-  marks.forEach((m) => {
-    const d = m[1], x = X(t(d.firstSeen)); let y = Y(d.gci) - 17;
-    while (placed.some((p) => Math.abs(p.x - x) < 20 && Math.abs(p.y - y) < 20)) y -= 21;
-    placed.push({ x, y });
-    const col = m[0] === 'all' ? C.azure : 'var(--good)';
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${m.n}. ${modelEffort(d)} · GCI ${d.gci.toFixed(1)} · ${m[0] === 'all' ? 'new best' : 'new best open'}`)}">` +
-      (Math.abs(y - (Y(d.gci) - 17)) > 1 ? `<line x1="${x}" x2="${x}" y1="${y + 9}" y2="${Y(d.gci) - 6}" stroke="${col}" stroke-width="1.5"/>` : '') +
-      `<circle cx="${x.toFixed(1)}" cy="${Y(d.gci).toFixed(1)}" r="6" fill="${d.tint}" stroke="#fff" stroke-width="2"/>` +
-      `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5" fill="${col}"/><text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" class="badge" text-anchor="middle">${m.n}</text></g>`;
-  });
-  const legend = `<div class="legend"><span><i class="ln"></i>Best so far</span>${recOpen.length ? '<span><i class="ln dash"></i>Best open weights so far</span>' : ''}<span><i class="dt"></i>Every model</span></div>`;
-  const timeline = `<ol class="records">${marks.map((m) => { const d = m[1]; return `<li data-m="${esc(d.id)}"><span class="num ${m[0]}">${m.n}</span><span class="when">${fmtDay(t(d.firstSeen))}</span>` +
-    `<span class="nm">${iconHTML(d)}<b>${esc(d.model)}</b><small>${esc(d.effort)}</small></span><span class="gv">${d.gci.toFixed(1)}</span></li>`; }).join('')}</ol>`;
+  const recList = [...all.recs.map((d) => ['best', d]), ...open.recs.map((d) => ['open', d])].sort((a, b) => a[1].firstSeen.localeCompare(b[1].firstSeen));
+  const table = `<table class="plist"><tr><th>Date</th><th>New record</th><th></th><th>GCI</th></tr>${recList.map(([k, d]) => `<tr data-m="${esc(d.id)}"><td>${d.firstSeen}</td><td><span class="nm">${iconHTML(d)}<b>${esc(d.model)}</b><small>${esc(d.effort)}</small></span></td><td><span class="ptag ${k}">${k === 'open' ? 'best open' : 'best overall'}</span></td><td><b>${d.gci.toFixed(1)}</b></td></tr>`).join('')}</table>`;
   const gci = META.gci || {};
-  return card('Progress over time',
-    'GCI (Gamefeel Capabilities Index) is one score per model that stays comparable across benchmark versions. Each new best is numbered.',
-    stats + legend + `<div class="pgrid"><svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>${timeline}</div>`,
-    `On ${esc(gci.base || 'v1.5')}, GCI = the overall score. Later versions are fitted onto it through the models tested in both. Dates are when a result first entered the published data (from 17 Oct 2026). Only models with all seven scores have a GCI.`);
+  return card('Progress over time · GCI',
+    'GCI, the Gamefeel Capabilities Index: one number per model that stays comparable when the benchmark moves to a new version. Each dot is a model at the date its result first appeared; the lines step up each time a new best arrives.' + (state.openOnly ? '' : ' <span style="color:var(--azure);font-weight:800">Solid blue</span>: best of all models. <span style="color:var(--good-ink);font-weight:800">Dashed green</span>: best open-weight model.'),
+    `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg><div class="tscroll">${table}</div>`,
+    `GCI on ${esc(gci.base || 'v1.5')} = the overall score. On each later version the build fits the new overall scores to the previous version's GCI, using every model tested in both, so the scale carries over; each version's values are kept in data/gci-history.csv. Dates are when a result first entered the published data; the history starts 2026-10-17, so models benchmarked before that share that date. Only models with all seven scores have a GCI.`);
 }
 
 /* ---------- overview: a tile per view, each with a small live preview; a click opens the view ---------- */
