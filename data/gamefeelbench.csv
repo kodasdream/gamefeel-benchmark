@@ -26,7 +26,7 @@ Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,9.82,,9
 Qwen-4-Flash-Early? (qoHawk),Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,11.94,,11.8206,48.7,no,,,,,48.7,2026-11-08
 Gpt-6.1-Sol,XHigh,openai,OpenAI,0.26,sub,1M,,,,,,,,,,3.93,,3.8907,,no,,,"Semi-private subset of the RE test, 748 tasks",52,,2026-11-08
 Gpt-6.1-Terra,XHigh,openai,OpenAI,0.13,sub,1M,,,,,,,,,,3.71,,3.6729,,no,,,"Semi-private subset of the RE test, 748 tasks",45,,2026-11-08
-Gemini-4-Carbon,High,google,Google DeepMind,8.8,api,1M,48,0,180,64,56,51,47,67,33,32.81,55.62,40.0092,51.1,no,,,,60,51.1,2026-11-09
+Gemini-4-Carbon,High,google,Google DeepMind,8.8,api,1M,48,0,180,64,56,51,47,67,33,32.81,54.51,39.6429,51.1,no,,,,60,51.1,2026-11-09
 Fable-5.2,Max,anthropic,Anthropic,7.2,sub,1M,102,2,90,71,69,51,42,64,31,20.2,,19.998,49.7,no,,,,65,49.7,2026-11-09
 Fable-5.2,Medium,anthropic,Anthropic,0.93,sub,1M,51,1,90,66,66,51,42,64,30,22.94,,22.7106,48.8,no,,,,56,48.8,2026-11-09
 Muse Ember,Max,meta,Meta AI,0.04,api,1M,,,,,,,,,,0,,0,,no,,,,36,,2026-11-12
@@ -47,3 +47,4 @@ OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,1.16,,1.1484,,no,,,,,,2026-11-12
 Nemotron-3-Ultra 550B,,nvidia,NVIDIA,,,,,,,,,,,,,0.89,,0.8811,,yes,1100,"BF16, 550B params (computed)",,12,,2026-11-12
 Beam 1.0,,beam,Beam,,,,,,,,,,,,,0.76,,0.7524,,yes,1003,"BF16, 501B params (computed)",,18,,2026-11-12
 Bonsai-2-27B,,bonsai,Bonsai,,,,,,,,,,,,,0.02,,0.0198,,yes,5.9,ternary,,,,2026-11-12
+Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,,,440,,,,,,,15.05,56.63,28.6209,,no,,,,,,2026-11-13
