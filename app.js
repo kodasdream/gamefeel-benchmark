@@ -290,6 +290,9 @@ function scoresFig(scope, hidden) {
   return { W: WC, H, body, wide: true };
 }
 
+/* The rows one RE chart shows: every model once, at its best reasoning effort; lowest left, best right. */
+const reRows = (key) => bestPerModel(DATA.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key])).reverse();
+
 /* ---------- figure: the RE export — blind / assisted / combined as three bar charts stacked vertically ---------- */
 function reStackedFig() {
   const sections = [
@@ -300,8 +303,7 @@ function reStackedFig() {
   const GAP = 90;
   let body = '', top = TOP, H = TOP;
   for (const [key, label, desc] of sections) {
-    const byScore = DATA.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key]);
-    const rows = bestPerModel(byScore).reverse();   // every model once at its best effort; lowest left, best right
+    const rows = reRows(key);
     const note = `  All ${rows.length} models, each at its best reasoning effort.`;
     body += `<text x="64" y="${top + 26}" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
     body += `<text x="64" y="${top + 60}" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
@@ -318,6 +320,17 @@ function reStackedFig() {
     'Every model is shown once per chart, at its best reasoning effort.',
   ];
   return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE', lines) + body, wide: true };
+}
+
+/* ---------- figure: one RE section on its own — exported separately as scores-re-blind / -assisted / -combined ---------- */
+function reSingleFig(view) {
+  const key = RE_FIELD[view];
+  const rows = reRows(key);
+  const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${view} ${fmtScore(d[key])} · ${priceText(d)}` }));
+  const chart = columnChart(items, { top: TOP, ...fitAxis(rows.length ? rows[rows.length - 1][key] : 1), unit: 'score', empty: `No model has a ${view} score yet.` });
+  const lines = [...RE_LINES[view],
+    `The scale runs from 0 to the best score on this chart. Price per task is under each column. All ${rows.length} models, each at its best reasoning effort.`];
+  return { W: WC, H: chart.H, body: frame(WC, chart.H, `GAMEFEEL · RE (${view.toUpperCase()}) · SCORES`, lines) + chart.body, wide: true };
 }
 
 /* ---------- figure: price to performance (log price vs score) ---------- */
@@ -971,6 +984,10 @@ const EXPORTS = [
     { name: `scores-${k}`, build: () => (k === 're' ? reStackedFig() : scoresFig(k, NONE)) },
     { name: `price-performance-${k}`, build: () => ppFig(k, NONE) },
   ]),
+  // the three RE sections also ship as separate images, alongside the stacked scores-re above
+  { name: 'scores-re-blind', build: () => reSingleFig('blind') },
+  { name: 'scores-re-assisted', build: () => reSingleFig('assisted') },
+  { name: 'scores-re-combined', build: () => reSingleFig('combined') },
   { name: 'size-performance-overall', build: () => sizeFig('overall', NONE) },
   // the Qwen highlight: the overall and RE price charts and the overall size chart, with both Qwen-4 models left off the blue line and measured in purple
   { name: 'qwen-highlight-price-performance-overall', build: () => ppFig('overall', NONE, true) },
