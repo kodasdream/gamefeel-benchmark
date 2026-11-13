@@ -259,3 +259,4 @@ table.plist .nm { align-items: center; }
   .controls .seg button { padding: 7px 12px; }
   .hsvg .lbl { font-size: 21px; } .hsvg .note, .hsvg .ax { font-size: 19px; } .hsvg .tiny { font-size: 17px; }
 }
+ol.rank .rn, ol.rank .rn .nm { min-width: 0; overflow: hidden; }
