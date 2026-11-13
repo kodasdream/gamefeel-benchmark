@@ -59,7 +59,7 @@ async function loadData() {
       timeMin: num(r.minutes_per_task), compress: num(r.context_compression_per_task),
       tps: num(r.tokens_per_second),
       openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
-      reNote: r.re_test || '', aaIndex: num(r.aa_index || ''),   // set only on a result from the semi-private subset of the RE test
+      reNote: r.re_test || '', aaIndex: num(r.aa_index || ''), gci: num(r.gci || ''), firstSeen: r.first_seen || '',   // set only on a result from the semi-private subset of the RE test
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
       re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_combined: num(r.re_combined),
     };
@@ -841,6 +841,7 @@ const EXTRA = [
   ['rehelp', 'Blind vs assisted RE', 'How much the 39 rated examples help each model'],
   ['effort', 'Is more effort worth it?', 'Each model across its reasoning-effort levels'],
   ['general', 'Gamefeel vs general capability', 'Outliers against the Artificial Analysis index'],
+  ['progress', 'Progress over time', 'GCI, the best score so far, by date'],
 ];
 const EXTRA_KEYS = EXTRA.map((e) => e[0]);
 const isPhone = () => matchMedia('(max-width: 700px)').matches;
@@ -946,7 +947,18 @@ function effortHTML(metric, hidden) {
   return card('Is more reasoning effort worth it?',
     'Each line is one model at its effort levels; bigger dot = more effort. Up and to the right is the normal trade. A line that goes down to the right means paying for more effort bought a lower score.',
     tog + `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>`,
-    'Only models tested at two or more effort levels, each with a price and a score in this view.');
+    'Only models tested at two or more effort levels, each with a price and a score in this view.' + effortGap(metric, hidden, F));
+}
+/* Models tested at several efforts that this view cannot draw as a line, and why. */
+function effortGap(metric, hidden, F) {
+  const shown = new Set(F.map((g) => g[0].model)), fam = {};
+  DATA.filter((d) => !hidden.has(d.id) && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
+  const miss = Object.entries(fam).filter(([m, g]) => g.length > 1 && !shown.has(m));
+  if (!miss.length) return '';
+  return ' Not drawn: ' + miss.map(([m, g]) => {
+    const lacking = g.filter((d) => (metric === 're' ? d.re : d.avg) == null || !(d.price > 0)).map((d) => d.effort);
+    return `${esc(m)} (${lacking.join(' and ')} ${lacking.length > 1 ? 'have' : 'has'} no ${metric === 're' ? 'RE score' : 'overall score'} or price yet${metric === 're' ? '' : '; switch to Gamefeel RE to see all its levels'})`;
+  }).join('; ') + '.';
 }
 
 /* ---------- Gamefeel vs general capability (Artificial Analysis Intelligence Index) ---------- */
@@ -989,37 +1001,144 @@ function generalHTML(metric, sort, hidden) {
     `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.`);
 }
 
+/* ---------- progress over time: GCI (Gamefeel Capabilities Index) by the date a result first appeared ---------- */
+function progressHTML(hidden) {
+  const rows = DATA.filter((d) => !hidden.has(d.id) && d.gci != null && d.firstSeen).sort((a, b) => a.firstSeen.localeCompare(b.firstSeen) || b.gci - a.gci);
+  if (rows.length < 2) return card('Progress over time', '', '<p class="sub">Not enough models with a GCI are shown.</p>');
+  const t = (s) => Date.parse(s + 'T00:00:00Z');
+  const days = rows.map((d) => t(d.firstSeen)), d0 = Math.min(...days) - 2 * 864e5, d1 = Math.max(Date.now(), Math.max(...days)) + 2 * 864e5;
+  const ph = isPhone(), W = ph ? 690 : 1000, H = ph ? 520 : 540, L = 56, R = W - (ph ? 24 : 200), T = 24, B = H - 52;
+  const g = rows.map((d) => d.gci), y0 = Math.max(0, Math.floor((Math.min(...g) - 4) / 5) * 5), y1 = Math.ceil((Math.max(...g) + 4) / 5) * 5;
+  const X = (ms) => L + ((ms - d0) / (d1 - d0)) * (R - L), Y = (v) => B - ((v - y0) / (y1 - y0)) * (B - T);
+  let s = '';
+  for (let v = y0; v <= y1; v += 5) s += `<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${L - 10}" y="${Y(v) + 4}" class="ax" text-anchor="end">${v}</text>`;
+  for (let ms = Math.ceil(d0 / (7 * 864e5)) * 7 * 864e5; ms <= d1; ms += 7 * 864e5) {
+    s += `<text x="${X(ms)}" y="${B + 22}" class="ax" text-anchor="middle">${new Date(ms).toISOString().slice(5, 10)}</text>`;
+  }
+  // best GCI so far, as a step line: one for every model shown, one for open weights only
+  const steps = (list, color, dash, label) => {
+    let best = -Infinity, path = '', recs = [];
+    list.forEach((d) => { if (d.gci > best) { const x = X(t(d.firstSeen)); path += path ? `H${x.toFixed(1)}V${Y(d.gci).toFixed(1)}` : `M${x.toFixed(1)} ${Y(d.gci).toFixed(1)}`; best = d.gci; recs.push(d); } });
+    if (!path) return { s: '', recs };
+    path += `H${X(d1).toFixed(1)}`;
+    return { s: `<path d="${path}" fill="none" stroke="${color}" stroke-width="3" ${dash ? `stroke-dasharray="${dash}"` : ''}/><text x="${R + 8}" y="${Y(best) + 4}" class="lbl" style="fill:${color}">${ph ? '' : label + ' ' + best.toFixed(1)}</text>`, recs };
+  };
+  const all = steps(rows, C.azure, '', 'best');
+  const open = state.openOnly ? { s: '', recs: [] } : steps(rows.filter((d) => d.openWeights), 'var(--good)', '9 6', 'best open');
+  s += all.s + open.s;
+  const boxes = [];   // record labels already placed: a new one moves down (then up) until it is clear of them
+  const place = (x, y, text) => {
+    const w = textW(text, 11, 700) + 6;
+    for (let k = 0; k < 14; k++) {
+      const yy = y + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 15;
+      const b = { x0: x, x1: x + w, y0: yy - 11, y1: yy + 3 };
+      if (!boxes.some((o) => o.x0 < b.x1 && b.x0 < o.x1 && o.y0 < b.y1 && b.y0 < o.y1) && b.x1 < W - 4) { boxes.push(b); return yy; }
+    }
+    return null;
+  };
+  rows.forEach((d) => {
+    const rec = all.recs.includes(d) || open.recs.includes(d);
+    const ly = rec && !ph ? place(X(t(d.firstSeen)) + 10, Y(d.gci) - 9, modelEffort(d)) : null;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · GCI ${d.gci.toFixed(1)} · first in the data ${d.firstSeen}${d.openWeights ? ' · open weights' : ''}`)}">` +
+      `<circle cx="${X(t(d.firstSeen)).toFixed(1)}" cy="${Y(d.gci).toFixed(1)}" r="${rec ? 7 : 5}" fill="${d.tint}" ${d.openWeights ? '' : 'fill-opacity=".85"'} stroke="#fff" stroke-width="1.5"/>` +
+      (ly != null ? `<text x="${X(t(d.firstSeen)) + 10}" y="${ly}" class="tiny">${esc(modelEffort(d))}</text>` : '') + '</g>';
+  });
+  const recList = [...all.recs.map((d) => ['best', d]), ...open.recs.map((d) => ['open', d])].sort((a, b) => a[1].firstSeen.localeCompare(b[1].firstSeen));
+  const table = `<table class="plist"><tr><th>Date</th><th>New record</th><th></th><th>GCI</th></tr>${recList.map(([k, d]) => `<tr data-m="${esc(d.id)}"><td>${d.firstSeen}</td><td><span class="nm">${iconHTML(d)}<b>${esc(d.model)}</b><small>${esc(d.effort)}</small></span></td><td><span class="ptag ${k}">${k === 'open' ? 'best open' : 'best overall'}</span></td><td><b>${d.gci.toFixed(1)}</b></td></tr>`).join('')}</table>`;
+  const gci = META.gci || {};
+  return card('Progress over time · GCI',
+    'GCI, the Gamefeel Capabilities Index: one number per model that stays comparable when the benchmark moves to a new version. Each dot is a model at the date its result first appeared; the lines step up each time a new best arrives.' + (state.openOnly ? '' : ' <span style="color:var(--azure);font-weight:800">Solid blue</span>: best of all models. <span style="color:var(--good-ink);font-weight:800">Dashed green</span>: best open-weight model.'),
+    `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg><div class="tscroll">${table}</div>`,
+    `GCI on ${esc(gci.base || 'v1.5')} = the overall score. On each later version the build fits the new overall scores to the previous version's GCI, using every model tested in both, so the scale carries over; each version's values are kept in data/gci-history.csv. Dates are when a result first entered the published data; the history starts 2026-10-17, so models benchmarked before that share that date. Only models with all seven scores have a GCI.`);
+}
+
+/* ---------- overview: a tile per view, each with a small live preview; a click opens the view ---------- */
+const miniBars = (rows, val, fmt = fmtScore, n = 4) => {
+  const top = rows.slice(0, n), max = top.length ? Math.max(...top.map(val)) || 1 : 1;
+  return `<ol class="mini">${top.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><i style="width:${Math.max(3, (val(d) / max) * 100).toFixed(0)}%;background:${d.tint}"></i><em>${fmt(val(d))}</em></li>`).join('')}</ol>`;
+};
+function miniScatter(rows, xv, yv, logX = true) {
+  if (rows.length < 2) return '';
+  const W = 240, H = 92, xs = rows.map(xv), ys = rows.map(yv);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const X = (v) => 6 + (logX ? Math.log(v / x0) / Math.log(x1 / x0 || 2) : (v - x0) / (x1 - x0 || 1)) * (W - 12);
+  const Y = (v) => H - 6 - ((v - y0) / (y1 - y0 || 1)) * (H - 12);
+  const front = [...rows].sort((a, b) => xv(a) - xv(b)).filter(((best) => (d) => (yv(d) > best ? ((best = yv(d)), true) : false))(-Infinity));
+  return `<svg class="msc" viewBox="0 0 ${W} ${H}"><path d="${front.map((d, i) => (i ? 'L' : 'M') + X(xv(d)).toFixed(1) + ' ' + Y(yv(d)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="2.5"/>` +
+    rows.map((d) => `<circle cx="${X(xv(d)).toFixed(1)}" cy="${Y(yv(d)).toFixed(1)}" r="3.6" fill="${d.tint}"/>`).join('') + '</svg>';
+}
+function tilesHTML(hidden) {
+  const vis = DATA.filter((d) => !hidden.has(d.id));
+  const ranked = (key) => bestPerModel(vis.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key]));
+  const tiles = [];
+  const add = (go, title, sub, body, big = false) => tiles.push({ go, title, sub, body, big });
+  add('explorer/overall/score', 'Overall ranking', 'Average of all seven scores', miniBars(ranked('avg'), (d) => d.avg, (v) => v.toFixed(1), 5), true);
+  SCOPES.slice(1).forEach(([k, l]) => add(`explorer/${k}/score`, l, k === 're' ? 'Feedback on game proposals' : 'Score out of 100', miniBars(ranked(k), (d) => d[k], fmtScore, 3)));
+  const priced = vis.filter((d) => d.complete && d.px != null);
+  add('explorer/overall/p2p', 'Price to performance', 'Overall score against price per task, blue = best value line', miniScatter(priced, (d) => d.px, (d) => d.avg));
+  const sized = vis.filter((d) => d.complete && d.openWeights && d.size != null);
+  add('explorer/overall/size', 'Size to performance', 'Open-weight models: size against score', miniScatter(sized, (d) => d.size, (d) => d.avg));
+  add('speed/tps', 'Speed', 'Output tokens per second', miniBars(ranked('tps'), (d) => d.tps, (v) => `${v}`, 3));
+  const best = ranked('avg')[0];
+  add('profiles', 'Profiles', 'Seven scores as one shape per model', best ? `<svg class="msc" viewBox="0 0 240 92">${[best].map((d) => { const pts = SCORE_KEYS.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7, r = (d[k] / 100) * 42; return `${(120 + Math.cos(a) * r).toFixed(1)},${(46 + Math.sin(a) * r).toFixed(1)}`; }); return `<polygon points="${SCORE_KEYS.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7; return `${(120 + Math.cos(a) * 42).toFixed(1)},${(46 + Math.sin(a) * 42).toFixed(1)}`; }).join(' ')}" fill="none" stroke="${C.track}" stroke-width="1.5"/><polygon points="${pts.join(' ')}" fill="${d.tint}" fill-opacity=".2" stroke="${d.tint}" stroke-width="2"/>`; }).join('')}</svg><p class="tnote">${esc(modelEffort(best))}</p>` : '');
+  add('ledger', 'Ledger', 'Every column for every entry, sortable', `<p class="tbig">${vis.length}<small> entries</small></p><p class="tnote">price, speed, context, all scores</p>`);
+  const hm = ranked('avg').slice(0, 5), range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, [Math.min(...v), Math.max(...v)]]; }));
+  add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
+  const ra = vis.filter((d) => d.re_blind != null && d.re_assisted != null).sort((a, b) => (b.re_assisted - b.re_blind) - (a.re_assisted - a.re_blind)).slice(0, 3);
+  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${d.re_blind}%;width:${Math.max(1, d.re_assisted - d.re_blind)}%;background:${d.tint}"></i></span><em>+${(d.re_assisted - d.re_blind).toFixed(1)}</em></li>`).join('')}</ol>`);
+  const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
+  const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
+  add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(1)}`).join(' → ')}</em></li>`).join('')}</ol>`);
+  const both = vis.filter((d) => d.aaIndex != null && d.avg != null);
+  let gen = '';
+  if (both.length >= 3) {
+    const fit = linFit(both.map((d) => [d.aaIndex, d.avg]));
+    const g = both.map((d) => ({ d, gap: d.avg - (fit.a + fit.b * d.aaIndex) })).sort((a, b) => b.gap - a.gap);
+    gen = `<ol class="mini">${[g[0], g[1], g[g.length - 1]].map(({ d, gap }) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="${gap >= 0 ? 'up' : 'dn'}">${gap >= 0 ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(1)}</em></li>`).join('')}</ol>`;
+  }
+  add('general', 'Gamefeel vs general capability', 'Who beats their Artificial Analysis index', gen);
+  const pg = vis.filter((d) => d.gci != null && d.firstSeen).sort((a, b) => a.firstSeen.localeCompare(b.firstSeen));
+  let bestSoFar = -Infinity; const recs = pg.filter((d) => (d.gci > bestSoFar ? ((bestSoFar = d.gci), true) : false));
+  add('progress', 'Progress over time', 'GCI: the best Gamefeel score so far', recs.length ? `<ol class="mini">${recs.slice(-3).reverse().map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="wide">${d.firstSeen.slice(5)} · GCI ${d.gci.toFixed(1)}</em></li>`).join('')}</ol>` : '');
+  return `<div class="tiles">${tiles.map((t) => `<button type="button" class="tile${t.big ? ' big' : ''}" data-open="${t.go}"><span class="th"><b>${esc(t.title)}</b><span class="arrow">↗</span></span><small>${esc(t.sub)}</small><div class="tb">${t.body}</div></button>`).join('')}</div>`;
+}
+
 /* ---------- app state ---------- */
 const TABS_KEYS = TABS.map((t) => t[0]);
 const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
 const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
+  openOnly: false,
   gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
 
+/* The open-weights switch hides every closed (or unflagged) model in every view, on top of the ticks in the model list. */
+const viewHidden = () => (state.openOnly ? new Set([...state.hidden, ...DATA.filter((d) => !d.openWeights).map((d) => d.id)]) : state.hidden);
 function buildCurrent() {
   const phone = isPhone();
-  if (phone && (state.tab === 'overview' || (state.tab === 'explorer' && state.mode === 'score'))) return { html: rankListHTML(state.tab === 'overview' ? state.pscope || 'overall' : state.scope, state.hidden) };
+  const hidden = viewHidden();
+  if (state.tab === 'overview') return { html: tilesHTML(hidden) };
+  if (phone && state.tab === 'explorer' && state.mode === 'score') return { html: rankListHTML(state.scope, hidden) };
   switch (state.tab) {
-    case 'glance': return { html: glanceHTML(state.gsort, state.hidden) };
-    case 'rehelp': return { html: reHelpHTML(state.hsort, state.hidden) };
-    case 'effort': return { html: effortHTML(state.emetric, state.hidden) };
-    case 'general': return { html: generalHTML(state.gmetric, state.asort, state.hidden) };
-    case 'overview': return overviewFig(state.hidden);
-    case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, state.hidden)
-      : state.mode === 'size' ? sizeFig(state.scope, state.hidden) : ppFig(state.scope, state.hidden);
-    case 'profiles': return radarFig([...state.prof], state.hidden);
-    case 'speed': return speedFig(state.metric, state.hidden);
-    case 'ledger': return ledgerFig(state.sort, state.hidden);
-    default: return overviewFig(state.hidden);
+    case 'glance': return { html: glanceHTML(state.gsort, hidden) };
+    case 'rehelp': return { html: reHelpHTML(state.hsort, hidden) };
+    case 'effort': return { html: effortHTML(state.emetric, hidden) };
+    case 'general': return { html: generalHTML(state.gmetric, state.asort, hidden) };
+    case 'progress': return { html: progressHTML(hidden) };
+    case 'overview': return overviewFig(hidden);
+    case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, hidden)
+      : state.mode === 'size' ? sizeFig(state.scope, hidden) : ppFig(state.scope, hidden);
+    case 'profiles': return radarFig([...state.prof], hidden);
+    case 'speed': return speedFig(state.metric, hidden);
+    case 'ledger': return ledgerFig(state.sort, hidden);
+    default: return overviewFig(hidden);
   }
 }
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
-      if (isPhone()) return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-pscope="${k}" class="${(state.pscope || 'overall') === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
-      return '<span class="hint">Models with all seven scores · tick a model on the left to hide it everywhere</span>';
+      return '<span class="crumb">Pick a view</span><span class="hint">Click a tile to open it full width · ☰ lists every view</span>';
     case 'explorer':
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
         `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>` +
@@ -1031,7 +1150,7 @@ function controlsHTML() {
       return `<div class="seg"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}">Minutes per task</button></div>`;
     case 'ledger':
       return '<span class="hint">Click a column heading to sort, click again to reverse</span>';
-    case 'glance': case 'rehelp': case 'effort': case 'general':
+    case 'glance': case 'rehelp': case 'effort': case 'general': case 'progress':
       return `<span class="crumb">☰ More views · ${esc(EXTRA.find((e) => e[0] === state.tab)[1])}</span><span class="hint">Tick a model on the left to hide it here too</span>`;
     default: return '';
   }
@@ -1052,13 +1171,13 @@ function renderSidebar() {
       `<span class="mtxt"><b>${esc(shortName(d))}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
       `<span class="mavg">${d.complete ? d.avg.toFixed(1) : 'partial'}</span></label>`;
   }).join('') || '<div class="side-foot">No model matches that filter.</div>';
-  $('#shown').textContent = `${DATA.length - state.hidden.size} of ${DATA.length} shown`;
+  $('#shown').textContent = `${DATA.length - viewHidden().size} of ${DATA.length} shown${state.openOnly ? ' · open only' : ''}`;
 }
 function render() {
   // the RE view toggle applies to the explorer's RE section only; every other tab and view uses combined
   RE_VIEW = state.tab === 'explorer' && state.scope === 're' ? state.reView : 'combined';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
-  $('#controls').innerHTML = controlsHTML();
+  $('#controls').innerHTML = `<div class="seg seg-open" role="group" aria-label="Which models"><button type="button" data-open-only="0" class="${state.openOnly ? '' : 'on'}">All models</button><button type="button" data-open-only="1" class="${state.openOnly ? 'on' : ''}">Open weights</button></div>` + controlsHTML();
   const f = buildCurrent();
   $('#stage').innerHTML = f.html ? `<div class="fig sections">${f.html}</div>`
     : `<div class="fig${f.wide ? ' wide' : ''}"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
@@ -1102,6 +1221,7 @@ $('#controls').addEventListener('click', (e) => {
   else if (ds.mode) state.mode = ds.mode;
   else if (ds.review) state.reView = ds.review;
   else if (ds.pscope) state.pscope = ds.pscope;
+  else if (ds.openOnly) { state.openOnly = ds.openOnly === '1'; try { localStorage.setItem('gfOpenOnly', ds.openOnly); } catch (err) { /* private mode */ } }
   else if (ds.metric) state.metric = ds.metric;
   else if (ds.prof) toggle(state.prof, ds.prof);
   else if (ds.act === 'top3') state.prof = new Set(TOP3());
@@ -1109,6 +1229,14 @@ $('#controls').addEventListener('click', (e) => {
   render();
 });
 $('#stage').addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-open]');
+  if (tile) {
+    const go = () => { history.replaceState(null, '', '#' + tile.dataset.open); readHash(); render(); const f = $('#stage .fig'); if (f) f.style.viewTransitionName = 'hero'; };
+    if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) { go(); return; }
+    tile.style.viewTransitionName = 'hero';
+    document.startViewTransition(go).finished.finally(() => { const f = $('#stage .fig'); if (f) f.style.viewTransitionName = ''; });
+    return;
+  }
   const b = e.target.closest('[data-gsort],[data-hsort],[data-asort],[data-emetric],[data-gmetric]');
   if (b) {
     const flip = (cur, k, textFirst) => (cur.key === k ? { key: k, dir: -cur.dir } : { key: k, dir: textFirst ? 1 : -1 });
@@ -1143,7 +1271,8 @@ const setSide = (show) => {
   $('#sideToggle').setAttribute('aria-pressed', String(show));
 };
 $('#sideToggle').addEventListener('click', () => setSide($('#app').classList.contains('no-side')));
-if (innerWidth <= 900) setSide(false);
+setSide(false);   // the model list starts collapsed; the Models button opens it
+try { state.openOnly = localStorage.getItem('gfOpenOnly') === '1'; } catch (err) { /* private mode */ }
 const tip = $('#tip');
 $('#stage').addEventListener('mousemove', (e) => {
   const t = e.target.closest('[data-tip]');
@@ -1166,7 +1295,7 @@ document.addEventListener('click', (e) => { if (!$('#menu').hidden && !e.target.
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { setMenu(false); return; }
   if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
-  const i = '123456789'.indexOf(e.key);
+  const i = '123456789'.indexOf(e.key);   // 1-5 tabs, 6-9 the first four extra views (the rest via ☰)
   if (i >= 0) { state.tab = i < 5 ? TABS_KEYS[i] : EXTRA_KEYS[i - 5]; render(); }
 });
 let wasPhone = isPhone();
