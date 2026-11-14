@@ -83,7 +83,7 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 | `re_test`                      | A note when the RE score is from the semi-private subset of the RE test (748 tasks). Every other result is the full test, over 8,000 tasks. Blank for the full test |
 | `aa_index`                     | Artificial Analysis Intelligence Index (artificialanalysis.ai, read 2026-11-13) for the same model and reasoning effort. Blank when the model is not on their leaderboard |
 | `gci`                          | Gamefeel Capabilities Index: comparable across benchmark versions. On v1.5 it equals `avg`; later versions are mapped onto it through models tested in both. History in `data/gci-history.csv` |
-| `first_seen`                   | Date the result first appeared in the published data (history starts 2026-10-17) |
+| `release_date`                 | The model's public release date (YYYY-MM-DD); blank for unreleased or stealth models, which get no GCI |
 
 A blank score means the model has no score for that subcategory.
 
