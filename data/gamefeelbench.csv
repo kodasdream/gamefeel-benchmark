@@ -21,7 +21,7 @@ Gemini-4-Argon,High,google,Google DeepMind,4.6,sub,1M,35,1,158,63,55,35,30,65,30
 Ling-3.2-Flash,Max,ant,Ant Group,0.88,api,256K,48,2,77,40,45,30,30,40,32,1.5,,1.485,31.2,yes,550,Q8,,,31.2,2026-11-07
 Nemotron-3.5-Super-VL,Max,nvidia,NVIDIA,0.01,api,1M,9,0,480,9,2,27,25,25,25,4.32,,4.2768,16.8,yes,60,quantization not stated,,14,16.8,2026-11-07
 Kimi K3.1-Pro,Max,moonshot,Moonshot AI,2.1,api,1M,77,2,73,63,55,10,10,45,27,0.1,,0.099,30,yes,3000,quantization not stated,,46,30,2026-11-07
-Qwen-4-27B-Early? (qoDuck),XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,5.76,,5.7024,43.2,yes,35,quantization not stated,,,43.2,2026-11-07
+Qwen-4-27B-Early? (qoDuck),XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,5.76,,5.7024,43.2,,,,,,43.2,2026-11-07
 Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,9.82,,9.7218,43.1,no,,,,55,43.1,2026-11-07
 Qwen-4-Flash-Early? (qoHawk),Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,11.94,,11.8206,48.7,no,,,,,48.7,2026-11-08
 Gpt-6.1-Sol,XHigh,openai,OpenAI,0.26,sub,1M,,,,,,,,,,3.93,,3.8907,,no,,,"Semi-private subset of the RE test, 748 tasks",52,,2026-11-08
@@ -40,7 +40,7 @@ Gemini-4-Carbon,Medium,google,Google DeepMind,2.13,api,1M,,,,,,,,,,30.25,53.94,3
 Nex N2.6,Max,nex,Nex,0.06,api,256K,,,,,,,,,,1.61,,1.5939,,yes,321,FP8,,,,2026-11-12
 Fable-5.2,High,anthropic,Anthropic,3.16,sub,1M,,,90,69,67,51,42,64,30,22.84,88.08,44.1408,52.4,no,,,,62,52.4,2026-11-12
 Sonus2,,sonus,SonusLab,,,,,,,,,,,,,8.19,,8.1081,,,,,,,,2026-11-12
-Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,,,,,560,64,55,38,33,56,44,4.91,6.6,5.4186,42.2,no,,,,,42.2,2026-11-12
+Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,,,,,560,64,55,38,33,56,44,4.91,6.6,5.4186,42.2,yes,560,"BF16, 280B params (computed)",,,42.2,2026-11-12
 Raon-1-Mini Preview,,raon,Raon AI,,,,,,,,,,,,,0,0,0,,yes,57.6,"BF16, 28.8B params (computed)",,,,2026-11-12
 Glyph Cluster,,glyph,Glyph,,,,,,,,,,,,,1.47,,1.4553,,no,,,,,,2026-11-12
 OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,1.16,,1.1484,,no,,,,,,2026-11-12

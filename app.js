@@ -888,22 +888,22 @@ function glanceHTML(sort, hidden) {
 function reHelpHTML(sort, hidden) {
   const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_assisted != null);
   const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? d.re_assisted - d.re_blind : k === 'model' ? d.model : d[k]));
-  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 330 : 300, R = W - (ph ? 70 : 150), rowH = 46, H = 50 + rows.length * rowH, X = (v) => L + (v / 100) * (R - L);
+  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 20 : 300, R = W - (ph ? 80 : 150), rowH = ph ? 76 : 46, H = (ph ? 66 : 50) + rows.length * rowH, X = (v) => L + (v / 100) * (R - L);
   let s = '';
   [0, 20, 40, 60, 80, 100].forEach((t) => { s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`; });
   rows.forEach((d, i) => {
-    const y = 52 + i * rowH, gain = d.re_assisted - d.re_blind;
+    const y = (ph ? 82 : 52) + i * rowH, gain = d.re_assisted - d.re_blind;   // on a phone the name sits on its own line above the bar
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · blind ${fmtScore(d.re_blind)} · assisted ${fmtScore(d.re_assisted)} · combined ${fmtScore(d.re_combined)}`)}">`;
     s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
-    s += `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}</text>`;
+    s += ph ? `<text x="${L}" y="${y - 20}" class="lbl">${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}</text>` : `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}</text>`;
     s += `<line x1="${X(d.re_blind)}" x2="${X(d.re_assisted)}" y1="${y}" y2="${y}" stroke="${d.tint}" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>`;
     s += `<circle cx="${X(d.re_blind)}" cy="${y}" r="7.5" fill="#fff" stroke="${d.tint}" stroke-width="3"/><circle cx="${X(d.re_assisted)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
-    if (d.re_combined != null) s += `<path d="M${X(d.re_combined).toFixed(1)} ${y - 12} l6 -9 h-12z" fill="var(--ink)"/>`;
+    if (d.re_combined != null) s += ph ? `<path d="M${X(d.re_combined).toFixed(1)} ${y + 12} l6 9 h-12z" fill="var(--ink)"/>` : `<path d="M${X(d.re_combined).toFixed(1)} ${y - 12} l6 -9 h-12z" fill="var(--ink)"/>`;
     s += `<text x="${X(Math.max(d.re_blind, d.re_assisted)) + 15}" y="${y + 5}" class="note">${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)}</text></g>`;
   });
   const opts = [['re_combined', 'Combined'], ['gain', 'Gain from examples'], ['re_blind', 'Blind'], ['re_assisted', 'Assisted'], ['model', 'Name']];
   return card('Blind vs assisted RE: how much do examples help?',
-    '○ blind score (no examples) · ● assisted score (after studying 39 rated examples) · ▼ combined (66% blind + 33% assisted). A long bar means the model learns a lot from examples.',
+    `○ blind score (no examples) · ● assisted score (after studying 39 rated examples) · ${ph ? '▲' : '▼'} combined (66% blind + 33% assisted). A long bar means the model learns a lot from examples.`,
     `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
     (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
     `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own row.`);

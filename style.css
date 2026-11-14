@@ -300,3 +300,4 @@ ol.rank .rn, ol.rank .rn .nm { min-width: 0; overflow: hidden; }
 /* orange ! in a triangle beside qoDuck and qoHawk */
 .warnb { display: inline-grid; place-items: center; width: 17px; height: 15px; margin-left: 6px; vertical-align: -2px; font: 900 10px/1 system-ui, sans-serif; color: #f08c00; padding-top: 3px; box-sizing: border-box;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 30'%3E%3Cpath d='M17 2L32 28H2Z' fill='%23fff' stroke='%23f08c00' stroke-width='3.5' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
+@media (max-width: 700px) { #stage .seg { flex-wrap: wrap; max-width: 100%; border-radius: 14px; } #stage .seg button { border-radius: 10px; } }
