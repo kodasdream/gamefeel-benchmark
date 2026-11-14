@@ -85,8 +85,8 @@ const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
 const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
-const NEW_MODELS = ['Ernie-5.5 Flash Preview', 'Gemini-4-Hydrogen'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
-const isNew = (d) => NEW_MODELS.includes(d.model);
+const NEW_MODELS = ['Opus-5.5 · Max', 'Ernie-5.5 Flash Preview', 'Gemini-4-Hydrogen'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const isNew = (d) => NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`);   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
 const warnSvg = (cx, base, h = 34) => { const w = h * 1.12, r = (v) => v.toFixed(1); return `<path d="M${r(cx)} ${r(base - h)}L${r(cx + w / 2)} ${r(base)}H${r(cx - w / 2)}Z" fill="#fff" stroke="${WARN_C}" stroke-width="3.5" stroke-linejoin="round"/><text x="${r(cx)}" y="${r(base - 6)}" font-size="${r(h * 0.62)}" font-weight="900" text-anchor="middle" fill="${WARN_C}">!</text>`; };
