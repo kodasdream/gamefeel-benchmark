@@ -22,7 +22,7 @@ Ling-3.2-Flash,Max,ant,Ant Group,0.88,api,256K,48,2,77,40,45,30,30,40,32,1.5,,1.
 Nemotron-3.5-Super-VL,Max,nvidia,NVIDIA,0.01,api,1M,9,0,480,9,2,27,25,25,25,4.32,,4.2768,16.8,yes,60,quantization not stated,,14,16.8,2026-11-07
 Kimi K3.1-Pro,Max,moonshot,Moonshot AI,2.1,api,1M,77,2,73,63,55,10,10,45,27,0.1,,0.099,30,yes,3000,quantization not stated,,46,30,2026-11-07
 Qwen-4-27B-Early? (qoDuck),XHigh,alibaba,Alibaba Qwen,0.16,api,1M,185,5,370,64,63,51,43,48,28,5.76,,5.7024,43.2,,,,,,43.2,2026-11-07
-Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,9.82,,9.7218,43.1,no,,,,55,43.1,2026-11-07
+Sonnet-5.5,Max,anthropic,Anthropic,7.8,sub,1M,90,1,120,65,65,48,39,54,21,9.82,,9.7218,43.1,no,,,,55,43.1,2026-10-17
 Qwen-4-Flash-Early? (qoHawk),Max,alibaba,Alibaba Qwen,0.4,api,1M,23,1,240,65,63,52,54,65,30,11.94,,11.8206,48.7,no,,,,,48.7,2026-11-08
 Gpt-6.1-Sol,XHigh,openai,OpenAI,0.26,sub,1M,,,,,,,,,,3.93,,3.8907,,no,,,"Semi-private subset of the RE test, 748 tasks",52,,2026-11-08
 Gpt-6.1-Terra,XHigh,openai,OpenAI,0.13,sub,1M,,,,,,,,,,3.71,,3.6729,,no,,,"Semi-private subset of the RE test, 748 tasks",45,,2026-11-08
@@ -35,12 +35,12 @@ Qwen-4-Max-Preview (Ali Cloud Nov 10),XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,,,7
 Qwen-4-Max-Preview (Qwen App Nov 11),High,alibaba,Alibaba Qwen,0,free,1M,,,79,,,,,,,8.54,,8.4546,,no,,,,,,2026-11-12
 Qwen-4-Max Preview (Qoder Nov 11),XHigh,alibaba,Alibaba Qwen,0.12,sub,1M,,,62,,,,,,,1.05,,1.0395,,no,,,,,,2026-11-12
 Qwen-3.8-27B,XHigh,alibaba,Alibaba Qwen,0.06,sub,256K,,,70,,,,,,,0.02,,0.0198,,yes,55.6,BF16,,20,,2026-11-12
-Gemini-4-Carbon,Low,google,Google DeepMind,2.04,api,1M,,,,,,,,,,11.24,53.2,24.9744,,no,,,,54,,2026-11-12
-Gemini-4-Carbon,Medium,google,Google DeepMind,2.13,api,1M,,,,,,,,,,30.25,53.94,37.7652,,no,,,,58,,2026-11-12
+Gemini-4-Carbon,Low,google,Google DeepMind,2.04,api,1M,,,,,,,,,,11.24,53.2,24.9744,,no,,,,54,,2026-11-09
+Gemini-4-Carbon,Medium,google,Google DeepMind,2.13,api,1M,,,,,,,,,,30.25,53.94,37.7652,,no,,,,58,,2026-11-09
 Nex N2.6,Max,nex,Nex,0.06,api,256K,,,,,,,,,,1.61,,1.5939,,yes,321,FP8,,,,2026-11-12
-Fable-5.2,High,anthropic,Anthropic,3.16,sub,1M,,,90,69,67,51,42,64,30,22.84,88.08,44.1408,52.4,no,,,,62,52.4,2026-11-12
+Fable-5.2,High,anthropic,Anthropic,3.16,sub,1M,,,90,69,67,51,42,64,30,22.84,88.08,44.1408,52.4,no,,,,62,52.4,2026-11-09
 Sonus2,,sonus,SonusLab,,,,,,,,,,,,,8.19,,8.1081,,,,,,,,2026-11-12
-Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,,,,,560,64,55,38,33,56,44,4.91,6.6,5.4186,42.2,yes,560,"BF16, 280B params (computed)",,,42.2,2026-11-12
+Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,,,,,560,64,55,45,36,56,44,4.91,6.6,5.4186,43.6,yes,560,"BF16, 280B params (computed)",,,43.6,2026-11-12
 Raon-1-Mini Preview,,raon,Raon AI,,,,,,,,,,,,,0,0,0,,yes,57.6,"BF16, 28.8B params (computed)",,,,2026-11-12
 Glyph Cluster,,glyph,Glyph,,,,,,,,,,,,,1.47,,1.4553,,no,,,,,,2026-11-12
 OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,1.16,,1.1484,,no,,,,,,2026-11-12
@@ -48,4 +48,4 @@ Nemotron-3-Ultra 550B,,nvidia,NVIDIA,,,,,,,,,,,,,0.89,,0.8811,,yes,1100,"BF16, 5
 Beam 1.0,,beam,Beam,,,,,,,,,,,,,0.76,,0.7524,,yes,1003,"BF16, 501B params (computed)",,18,,2026-11-12
 Bonsai-2-27B,,bonsai,Bonsai,,,,,,,,,,,,,0.02,,0.0198,,yes,5.9,ternary,,,,2026-11-12
 Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,24,1,440,63,59,54,50,65,32,7.55,56.63,23.6709,49.5,no,,,,53,49.5,2026-11-13
-Opus-5.5,Max,anthropic,Anthropic,6.93,sub,1M,90,0,67,65,66,50,41,63,26,13.42,99.1,41.5602,50.4,no,,,,58,50.4,2026-11-14
+Opus-5.5,Max,anthropic,Anthropic,6.93,sub,1M,90,0,67,65,66,50,41,63,26,13.42,99.1,41.5602,50.4,no,,,,58,50.4,2026-10-17

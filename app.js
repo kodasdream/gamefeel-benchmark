@@ -122,6 +122,8 @@ let RE_VIEW = 'combined';
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
   : scope === 're' ? (d[RE_FIELD[RE_VIEW]] ?? null) : (d[scope] ?? null));
 // One column per model: keep the best-scoring reasoning effort. Callers pass rows sorted best-first.
+const TOP_N = 35;   // score charts show the top 35 models, each once at its best reasoning effort
+const topNote = (shown, total) => (shown < total ? `Top ${shown} of ${total} models, each at its best reasoning effort.` : `All ${total} models, each at its best reasoning effort.`);
 const bestPerModel = (rows) => { const seen = new Set(); return rows.filter((d) => (seen.has(d.model) ? false : (seen.add(d.model), true))); };
 const priceText = (d) => (d.price == null ? 'no price given' : d.free ? 'free' : `$${d.price.toFixed(2)}/task${d.basis ? ` · ${BASIS_WORD[d.basis] || d.basis}` : ''}`);
 const priceLabel = (d) => (d.price == null ? 'no price' : d.free ? 'free' : `$${d.price.toFixed(2)}`);   // under a column
@@ -284,13 +286,15 @@ function overviewFig(hidden) {
 function scoresFig(scope, hidden) {
   let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
-  if (scope === 're') rows = bestPerModel(rows);   // match the RE export: every model once, at its best reasoning effort
+  rows = bestPerModel(rows);   // every model once, at its best reasoning effort
+  const total = rows.length;
+  rows = rows.slice(0, TOP_N);   // the top 35 only
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
-    ? [`Average of: ${SUBCATEGORY_LIST}`]
+    ? [`Average of: ${SUBCATEGORY_LIST}`, topNote(rows.length, total)]
     : scope === 're'
-      ? [...RE_LINES[RE_VIEW], `Best reasoning effort per model, all ${rows.length} models. Scale 0 to the best score; price per task under each column.`]
-      : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, 'Only models with a score in this subcategory are listed.'];
+      ? [...RE_LINES[RE_VIEW], `${topNote(rows.length, total)} Scale 0 to the best score; price per task under each column.`]
+      : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, `Only models with a score in this subcategory. ${topNote(rows.length, total)}`];
   // best on the right: the columns run from the lowest score on the left to the best on the right
   const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}` }; }),
     { top: topFor(lines), ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1), unit: 'score', empty: 'No model is shown for this view.' });
@@ -305,7 +309,7 @@ function scoresFig(scope, hidden) {
 }
 
 /* The rows one RE chart shows: every model once, at its best reasoning effort; lowest left, best right. */
-const reRows = (key) => bestPerModel(DATA.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key])).reverse();
+const reRows = (key) => bestPerModel(DATA.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key])).slice(0, TOP_N).reverse();
 
 /* ---------- figure: the RE export — blind / assisted / combined as three bar charts stacked vertically ---------- */
 function reStackedFig() {
@@ -318,7 +322,7 @@ function reStackedFig() {
   let body = '', top = TOP, H = TOP;
   for (const [key, label, desc] of sections) {
     const rows = reRows(key);
-    const note = `  All ${rows.length} models, each at its best reasoning effort.`;
+    const note = `  ${topNote(rows.length, bestPerModel(DATA.filter((d) => d[key] != null)).length)}`;
     body += `<text x="64" y="${top + 26}" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
     body += `<text x="64" y="${top + 60}" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
     const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${label} ${fmtScore(d[key])} · ${priceText(d)}` }));
@@ -855,14 +859,17 @@ const sortHead = (attr, key, label, sort, cls = '') => `<th class="${cls}"><butt
 /* ---------- phone: one ranked list per scope instead of a shrunken column chart ---------- */
 function rankListHTML(scope, hidden) {
   let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null).sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
-  if (scope === 're') rows = bestPerModel(rows);
+  rows = bestPerModel(rows);
+  const total = rows.length;
+  rows = rows.slice(0, TOP_N);
   const max = rows.length ? scoreOf(rows[0], scope) : 1;
   const title = scope === 'overall' ? 'Overall' : scope === 're' ? `Gamefeel RE · ${RE_VIEW}` : SCOPE_LABEL[scope];
   const list = rows.map((d, i) => { const v = scoreOf(d, scope); return `<li data-m="${esc(d.id)}"><span class="rk">${i + 1}</span><div class="rl"><div class="rn">${nameCell(d)}</div>` +
     `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${scope === 'overall' ? v.toFixed(1) : fmtScore(v)}</b><em>${priceLabel(d)}</em></div></div></li>`; }).join('');
-  const sub = scope === 'overall' ? 'Average of the seven scores. Models with a partial record are not ranked.' : scope === 're' ? 'Feedback on game proposals, especially balancing. Best effort per model.' : 'Score out of 100.';
+  const sub = scope === 'overall' ? 'Average of the seven scores. Models with a partial record are not ranked.' : scope === 're' ? 'Feedback on game proposals, especially balancing.' : 'Score out of 100.';
+  const subFull = `${sub} ${topNote(rows.length, total)}`;
   const subset = rows.filter((d) => d.reNote);
-  return card(title, sub, rows.length ? `<ol class="rank">${list}</ol>` : '<p class="sub">No model is shown.</p>', subset.length ? esc(reFootnote(subset)) : '');
+  return card(title, subFull, rows.length ? `<ol class="rank">${list}</ol>` : '<p class="sub">No model is shown.</p>', subset.length ? esc(reFootnote(subset)) : '');
 }
 
 /* ---------- every score at a glance: sortable heatmap ---------- */
