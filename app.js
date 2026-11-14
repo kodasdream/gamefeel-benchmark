@@ -85,7 +85,7 @@ const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
 const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
-const NEW_MODELS = ['Gemini-4-Hydrogen'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = ['Ernie-5.5 Flash Preview', 'Gemini-4-Hydrogen'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => NEW_MODELS.includes(d.model);
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
