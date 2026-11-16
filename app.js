@@ -934,31 +934,38 @@ function reHelpHTML(sort, hidden) {
 }
 
 /* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
-function releasedHTML(sort, hidden) {
+function releasedHTML(sort, hidden, mode = 'pts') {   // mode 'pts': difference in points; 'pct': released vs unreleased blind, in %
   const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_released != null);
-  const gapOf = (d) => d.re_released - d.re_blind;
-  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? gapOf(d) : k === 'ratio' ? d.re_released / Math.max(d.re_blind, 0.1) : k === 'model' ? d.model : d[k]));
+  const pct = mode === 'pct';
+  const pctOf = (d) => (d.re_blind > 0 ? ((d.re_released - d.re_blind) / d.re_blind) * 100 : null);
+  const gapOf = (d) => (pct ? pctOf(d) ?? Infinity : d.re_released - d.re_blind);
+  const fmtPct = (v) => (v == null ? 'n/a' : `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v)).toLocaleString('en-US')}%`);
+  const fmtGap = (d) => (pct ? fmtPct(pctOf(d)) : `${d.re_released - d.re_blind >= 0 ? '+' : '−'}${Math.abs(d.re_released - d.re_blind).toFixed(1)}`);
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? gapOf(d) : k === 'model' ? d.model : d[k]));
   const top = Math.max(10, Math.ceil(Math.max(0, ...base.flatMap((d) => [d.re_blind, d.re_released])) / 10) * 10);
   const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 20 : 300, R = W - (ph ? 90 : 150), rowH = ph ? 76 : 46, H = (ph ? 66 : 50) + rows.length * rowH, X = (v) => L + (v / top) * (R - L);
   let s = '';
   for (let t = 0; t <= top; t += top > 50 ? 20 : 10) s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`;
   rows.forEach((d, i) => {
-    const y = (ph ? 82 : 52) + i * rowH, gap = gapOf(d), up = gap >= 0;
+    const y = (ph ? 82 : 52) + i * rowH, up = d.re_released >= d.re_blind;
     const name = `${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}`;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · unreleased blind ${fmtScore(d.re_blind)} · released blind ${fmtScore(d.re_released)} · ${up ? '+' : '−'}${Math.abs(gap).toFixed(1)}`)}">`;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · unreleased blind ${fmtScore(d.re_blind)} · released blind ${fmtScore(d.re_released)} · ${fmtGap(d)}${pct ? '' : ' points'}`)}">`;
     s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
     s += ph ? `<text x="${L}" y="${y - 20}" class="lbl">${name}</text>` : `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${name}</text>`;
     s += `<line x1="${X(d.re_blind)}" x2="${X(d.re_released)}" y1="${y}" y2="${y}" stroke="${d.tint}" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>`;
     s += `<circle cx="${X(d.re_blind)}" cy="${y}" r="7.5" fill="#fff" stroke="${d.tint}" stroke-width="3"/><circle cx="${X(d.re_released)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
-    s += `<text x="${X(Math.max(d.re_blind, d.re_released)) + 15}" y="${y + 5}" class="note">${up ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(1)}</text></g>`;
+    s += `<text x="${X(Math.max(d.re_blind, d.re_released)) + 15}" y="${y + 5}" class="note">${up ? '▲ ' : '▼ '}${fmtGap(d)}</text></g>`;
   });
-  const opts = [['gap', 'Released advantage'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['ratio', 'Ratio'], ['model', 'Name']];
-  const avgGap = base.length ? base.reduce((a, d) => a + gapOf(d), 0) / base.length : 0;
+  const opts = [['gap', 'Released advantage'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['model', 'Name']];
+  const diffs = base.map((d) => d.re_released - d.re_blind), avgGap = diffs.length ? diffs.reduce((a, v) => a + v, 0) / diffs.length : 0;
+  const sumB = base.reduce((a, d) => a + d.re_blind, 0), sumR = base.reduce((a, d) => a + d.re_released, 0);
+  const pooled = sumB > 0 ? ((sumR - sumB) / sumB) * 100 : null;
+  const modeSeg = `<div class="seg" role="group" aria-label="Show the difference as">${[['pts', 'Points'], ['pct', 'Percent']].map(([k, l]) => `<button type="button" data-rmode="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   return card('Released vs unreleased games: who reads known games better?',
-    `○ RE blind on the benchmark's unreleased games · ● RE blind on released commercial games (Balatro, Slay the Spire, World of Warcraft and others). ▲ the model scores higher on released games, ▼ lower.`,
-    `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
+    `○ RE blind on the benchmark's unreleased games · ● RE blind on released commercial games (Balatro, Slay the Spire, World of Warcraft and others). ▲ the model scores higher on released games, ▼ lower. ${pct ? 'Percent: how much higher the released score is than the unreleased blind score.' : 'Points: released minus unreleased.'}`,
+    `<div class="sortbar"><span class="sortgrp"><span class="seg-cap">Show</span>${modeSeg}</span><span class="sortgrp"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></span></div>` +
     (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
-    `Both scores are blind (no worked examples). A large ▲ can mean the model already knows these games from its training data. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own row. Average difference: ${avgGap >= 0 ? '+' : '−'}${Math.abs(avgGap).toFixed(1)}.`);
+    `Both scores are blind (no worked examples). A large ▲ can mean the model already knows these games from its training data. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own row. Average difference: ${avgGap >= 0 ? '+' : '−'}${Math.abs(avgGap).toFixed(1)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on released games` : ''}.${pct ? ' A very low unreleased score makes the percentage very large, so compare those rows with care.' : ''}`);
 }
 
 /* ---------- is more effort worth it: each model's effort levels as one line ---------- */
@@ -1177,7 +1184,7 @@ const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
   openOnly: false,
-  gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, rsort: { key: 'gap', dir: -1 }, asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
+  gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
 
 /* The open-weights switch hides every closed (or unflagged) model in every view, on top of the ticks in the model list. */
@@ -1190,7 +1197,7 @@ function buildCurrent() {
   switch (state.tab) {
     case 'glance': return { html: glanceHTML(state.gsort, hidden) };
     case 'rehelp': return { html: reHelpHTML(state.hsort, hidden) };
-    case 'released': return { html: releasedHTML(state.rsort, hidden) };
+    case 'released': return { html: releasedHTML(state.rsort, hidden, state.rmode) };
     case 'effort': return { html: effortHTML(state.emetric, hidden) };
     case 'general': return { html: generalHTML(state.gmetric, state.asort, hidden) };
     case 'progress': return { html: progressHTML(hidden) };
@@ -1317,13 +1324,14 @@ $('#stage').addEventListener('click', (e) => {
     document.startViewTransition(go).finished.finally(() => { const f = $('#stage .fig'); if (f) f.style.viewTransitionName = ''; });
     return;
   }
-  const b = e.target.closest('[data-gsort],[data-hsort],[data-rsort],[data-asort],[data-emetric],[data-gmetric]');
+  const b = e.target.closest('[data-gsort],[data-hsort],[data-rsort],[data-rmode],[data-asort],[data-emetric],[data-gmetric]');
   if (b) {
     const flip = (cur, k, textFirst) => (cur.key === k ? { key: k, dir: -cur.dir } : { key: k, dir: textFirst ? 1 : -1 });
     const ds = b.dataset;
     if (ds.gsort) state.gsort = flip(state.gsort, ds.gsort, ds.gsort === 'model');
     else if (ds.hsort) state.hsort = flip(state.hsort, ds.hsort, ds.hsort === 'model');
     else if (ds.rsort) state.rsort = flip(state.rsort, ds.rsort, ds.rsort === 'model');
+    else if (ds.rmode) state.rmode = ds.rmode;
     else if (ds.asort) state.asort = flip(state.asort, ds.asort, ds.asort === 'model');
     else if (ds.emetric) state.emetric = ds.emetric;
     else if (ds.gmetric) state.gmetric = ds.gmetric;
@@ -1408,6 +1416,7 @@ const EXPORTS = [
   { name: 'view-every-score-at-a-glance', build: () => ({ html: glanceHTML({ key: 'avg', dir: -1 }, NONE) }) },
   { name: 'view-re-blind-vs-assisted', build: () => ({ html: reHelpHTML({ key: 're_combined', dir: -1 }, NONE) }) },
   { name: 'view-re-released-vs-unreleased', build: () => ({ html: releasedHTML({ key: 'gap', dir: -1 }, NONE) }) },
+  { name: 'view-re-released-vs-unreleased-percent', build: () => ({ html: releasedHTML({ key: 'gap', dir: -1 }, NONE, 'pct') }) },
   { name: 'view-effort-overall', build: () => ({ html: effortHTML('avg', NONE) }) },
   { name: 'view-effort-re', build: () => ({ html: effortHTML('re', NONE) }) },
   { name: 'view-general-capability-overall', build: () => ({ html: generalHTML('avg', { key: 'gap', dir: -1 }, NONE) }) },
