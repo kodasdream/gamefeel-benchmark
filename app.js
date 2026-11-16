@@ -322,32 +322,38 @@ const reRows = (key) => bestPerModel(DATA.filter((d) => d[key] != null).sort((a,
 
 /* ---------- figure: the RE export — blind / assisted / combined as three bar charts stacked vertically ---------- */
 function reStackedFig() {
+  // 2 x 2: blind | assisted on top, released | combined below. Each quarter is a full-width column chart (WC units),
+  // and the export is captured twice as wide (exportScale 2), so every quarter is as sharp as a single-section image.
   const sections = [
     ['re_blind', 'BLIND', 'No worked examples shown — the model rates the game proposals cold.'],
     ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
     ['re_released', 'RELEASED · BLIND', 'Blind, on proposals for released commercial games such as Balatro, Slay the Spire and World of Warcraft.'],
     ['re_combined', 'COMBINED', 'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. Blind + released: 75% + 25%. All three: 50% blind + 30% assisted + 20% released.'],
   ];
-  const GAP = 90;
-  let body = '', top = TOP, H = TOP;
-  for (const [key, label, desc] of sections) {
+  const GAP = 90, W = 2 * WC;
+  const cells = sections.map(([key, label, desc]) => {
     const rows = reRows(key);
     const note = `  ${topNote(rows.length, bestPerModel(DATA.filter((d) => d[key] != null)).length)}`;
-    body += `<text x="64" y="${top + 26}" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
-    body += `<text x="64" y="${top + 60}" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
+    let body = `<text x="64" y="26" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
+    body += `<text x="64" y="60" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
     const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${label} ${fmtScore(d[key])} · ${priceText(d)}` }));
-    const chart = columnChart(items, { top: top + 80, ...fitAxis(rows.length ? rows[rows.length - 1][key] : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` });
-    body += chart.body;
-    top = chart.H + GAP;
-    H = chart.H;
+    const chart = columnChart(items, { top: 80, ...fitAxis(rows.length ? rows[rows.length - 1][key] : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` });
+    return { body: body + chart.body, H: chart.H };
+  });
+  let body = '', top = TOP;
+  for (let r = 0; r < 2; r++) {
+    const pair = cells.slice(r * 2, r * 2 + 2);
+    pair.forEach((c, k) => { body += `<g transform="translate(${k * WC} ${top})">${c.body}</g>`; });
+    if (r === 0) body += `<line x1="${WC}" x2="${WC}" y1="${TOP}" y2="${top + Math.max(...pair.map((c) => c.H))}" stroke="${C.track}" stroke-width="3"/>`;
+    top += Math.max(...pair.map((c) => c.H)) + GAP;
   }
-  H = top - GAP + 60;
+  const H = top - GAP + 60;
   const lines = [
     'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
     'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Overall uses RE combined only, at 1.5x weight.',
     'Every model is shown once per chart, at its best reasoning effort.',
   ];
-  return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE', lines) + body, wide: true };
+  return { W, H, body: frame(W, H, 'GAMEFEEL · RE', lines) + body, wide: true, exportScale: 2 };
 }
 
 /* ---------- figure: one RE section on its own — exported separately as scores-re-blind / -assisted / -combined ---------- */
@@ -1416,11 +1422,15 @@ window.renderExport = (name) => {
   const f = e.build();
   state.openOnly = keepOpen;
   if (f.html) {   // an HTML view: laid out at 1536 CSS px and zoomed 2x, so it is captured 6144 px wide like the rest
+    $('#exportStage').style.width = '';
     $('#exportStage').innerHTML = `<div class="fig hexport">${f.html}</div>`;
     document.body.classList.add('exporting');
     return { W: 3072, H: Math.round($('#exportStage .fig').getBoundingClientRect().height) };
   }
-  $('#exportStage').innerHTML = `<div class="fig"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
+  // a figure with exportScale k is laid out k times wider (the 2x2 RE export), so its parts keep full resolution
+  const k = f.exportScale || 1;
+  $('#exportStage').style.width = `${3072 * k}px`;
+  $('#exportStage').innerHTML = `<div class="fig" style="width:${3072 * k}px"><svg viewBox="0 0 ${f.W} ${f.H}" xmlns="http://www.w3.org/2000/svg">${f.body}</svg></div>`;
   document.body.classList.add('exporting');
   return { W: f.W, H: f.H };
 };
