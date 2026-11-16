@@ -777,7 +777,7 @@ const LEDGER = [
   ['model', 'MODEL', 450, 'start'], ['effort', 'EFFORT', 130, 'start'], ['price', '$/TASK', 110, 'end'],
   ['basis', 'BASIS', 150, 'start'], ['context', 'CONTEXT', 120, 'end'], ['timeMin', 'MIN/TASK', 130, 'end'],
   ['compress', 'COMPRESS', 130, 'end'], ['tps', 'TOK/S', 110, 'end'],
-  ...SCORE_KEYS.map((k) => [k, k.toUpperCase(), 120, 'end']),
+  ...SCORE_KEYS.map((k) => (k === 'bugfix' ? [k, 'DEBUGGING', 140, 'end'] : [k, k.toUpperCase(), 120, 'end'])),
   ['avg', 'AVG', 120, 'end'], ['value', 'PTS/$', 120, 'end'],
 ];
 function sortRows(rows, sort) {
