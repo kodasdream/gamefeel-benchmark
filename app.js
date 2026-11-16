@@ -848,6 +848,7 @@ function ledgerFig(sort, hidden) {
 const EXTRA = [
   ['glance', 'Every score at a glance', 'All seven scores in one sortable heatmap'],
   ['rehelp', 'Blind vs assisted RE', 'How much the 39 rated examples help each model'],
+  ['released', 'Released vs unreleased games', 'Who reads released games better than unreleased ones'],
   ['effort', 'Is more effort worth it?', 'Each model across its reasoning-effort levels'],
   ['general', 'Gamefeel vs general capability', 'Outliers against the Artificial Analysis index'],
   ['progress', 'Progress over time', 'GCI, the best score so far, by date'],
@@ -924,6 +925,34 @@ function reHelpHTML(sort, hidden) {
     `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
     (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
     `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own row.`);
+}
+
+/* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
+function releasedHTML(sort, hidden) {
+  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_released != null);
+  const gapOf = (d) => d.re_released - d.re_blind;
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? gapOf(d) : k === 'ratio' ? d.re_released / Math.max(d.re_blind, 0.1) : k === 'model' ? d.model : d[k]));
+  const top = Math.max(10, Math.ceil(Math.max(0, ...base.flatMap((d) => [d.re_blind, d.re_released])) / 10) * 10);
+  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 20 : 300, R = W - (ph ? 90 : 150), rowH = ph ? 76 : 46, H = (ph ? 66 : 50) + rows.length * rowH, X = (v) => L + (v / top) * (R - L);
+  let s = '';
+  for (let t = 0; t <= top; t += top > 50 ? 20 : 10) s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`;
+  rows.forEach((d, i) => {
+    const y = (ph ? 82 : 52) + i * rowH, gap = gapOf(d), up = gap >= 0;
+    const name = `${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}`;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · unreleased blind ${fmtScore(d.re_blind)} · released blind ${fmtScore(d.re_released)} · ${up ? '+' : '−'}${Math.abs(gap).toFixed(1)}`)}">`;
+    s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
+    s += ph ? `<text x="${L}" y="${y - 20}" class="lbl">${name}</text>` : `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${name}</text>`;
+    s += `<line x1="${X(d.re_blind)}" x2="${X(d.re_released)}" y1="${y}" y2="${y}" stroke="${d.tint}" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>`;
+    s += `<circle cx="${X(d.re_blind)}" cy="${y}" r="7.5" fill="#fff" stroke="${d.tint}" stroke-width="3"/><circle cx="${X(d.re_released)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
+    s += `<text x="${X(Math.max(d.re_blind, d.re_released)) + 15}" y="${y + 5}" class="note">${up ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(1)}</text></g>`;
+  });
+  const opts = [['gap', 'Released advantage'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['ratio', 'Ratio'], ['model', 'Name']];
+  const avgGap = base.length ? base.reduce((a, d) => a + gapOf(d), 0) / base.length : 0;
+  return card('Released vs unreleased games: who reads known games better?',
+    `○ RE blind on the benchmark's unreleased games · ● RE blind on released commercial games (Balatro, Slay the Spire, World of Warcraft and others). ▲ the model scores higher on released games, ▼ lower.`,
+    `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
+    (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
+    `Both scores are blind (no worked examples). A large ▲ can mean the model already knows these games from its training data. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own row. Average difference: ${avgGap >= 0 ? '+' : '−'}${Math.abs(avgGap).toFixed(1)}.`);
 }
 
 /* ---------- is more effort worth it: each model's effort levels as one line ---------- */
@@ -1116,6 +1145,8 @@ function tilesHTML(hidden) {
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
   const ra = vis.filter((d) => d.re_blind != null && d.re_assisted != null).sort((a, b) => (b.re_assisted - b.re_blind) - (a.re_assisted - a.re_blind)).slice(0, 3);
   add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${d.re_blind}%;width:${Math.max(1, d.re_assisted - d.re_blind)}%;background:${d.tint}"></i></span><em>+${(d.re_assisted - d.re_blind).toFixed(1)}</em></li>`).join('')}</ol>`);
+  const rv = vis.filter((d) => d.re_blind != null && d.re_released != null).sort((a, b) => (b.re_released - b.re_blind) - (a.re_released - a.re_blind)).slice(0, 3);
+  add('released', 'Released vs unreleased games', 'Who reads known games better', `<ol class="mini">${rv.map((d) => { const g = d.re_released - d.re_blind; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '▲ +' : '▼ −'}${Math.abs(g).toFixed(1)}</em></li>`; }).join('')}</ol>`);
   const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
   const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
   add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(1)}`).join(' → ')}</em></li>`).join('')}</ol>`);
@@ -1140,7 +1171,7 @@ const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
   openOnly: false,
-  gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
+  gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, rsort: { key: 'gap', dir: -1 }, asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
 
 /* The open-weights switch hides every closed (or unflagged) model in every view, on top of the ticks in the model list. */
@@ -1153,6 +1184,7 @@ function buildCurrent() {
   switch (state.tab) {
     case 'glance': return { html: glanceHTML(state.gsort, hidden) };
     case 'rehelp': return { html: reHelpHTML(state.hsort, hidden) };
+    case 'released': return { html: releasedHTML(state.rsort, hidden) };
     case 'effort': return { html: effortHTML(state.emetric, hidden) };
     case 'general': return { html: generalHTML(state.gmetric, state.asort, hidden) };
     case 'progress': return { html: progressHTML(hidden) };
@@ -1180,7 +1212,7 @@ function controlsHTML() {
       return `<div class="seg"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}">Minutes per task</button></div>`;
     case 'ledger':
       return '<span class="hint">Click a column heading to sort, click again to reverse</span>';
-    case 'glance': case 'rehelp': case 'effort': case 'general': case 'progress':
+    case 'glance': case 'rehelp': case 'released': case 'effort': case 'general': case 'progress':
       return `<span class="crumb">☰ More views · ${esc(EXTRA.find((e) => e[0] === state.tab)[1])}</span><span class="hint">Tick a model on the left to hide it here too</span>`;
     default: return '';
   }
@@ -1279,12 +1311,13 @@ $('#stage').addEventListener('click', (e) => {
     document.startViewTransition(go).finished.finally(() => { const f = $('#stage .fig'); if (f) f.style.viewTransitionName = ''; });
     return;
   }
-  const b = e.target.closest('[data-gsort],[data-hsort],[data-asort],[data-emetric],[data-gmetric]');
+  const b = e.target.closest('[data-gsort],[data-hsort],[data-rsort],[data-asort],[data-emetric],[data-gmetric]');
   if (b) {
     const flip = (cur, k, textFirst) => (cur.key === k ? { key: k, dir: -cur.dir } : { key: k, dir: textFirst ? 1 : -1 });
     const ds = b.dataset;
     if (ds.gsort) state.gsort = flip(state.gsort, ds.gsort, ds.gsort === 'model');
     else if (ds.hsort) state.hsort = flip(state.hsort, ds.hsort, ds.hsort === 'model');
+    else if (ds.rsort) state.rsort = flip(state.rsort, ds.rsort, ds.rsort === 'model');
     else if (ds.asort) state.asort = flip(state.asort, ds.asort, ds.asort === 'model');
     else if (ds.emetric) state.emetric = ds.emetric;
     else if (ds.gmetric) state.gmetric = ds.gmetric;
@@ -1368,6 +1401,7 @@ const EXPORTS = [
   // the HTML views from the ☰ menu, all models, default sort
   { name: 'view-every-score-at-a-glance', build: () => ({ html: glanceHTML({ key: 'avg', dir: -1 }, NONE) }) },
   { name: 'view-re-blind-vs-assisted', build: () => ({ html: reHelpHTML({ key: 're_combined', dir: -1 }, NONE) }) },
+  { name: 'view-re-released-vs-unreleased', build: () => ({ html: releasedHTML({ key: 'gap', dir: -1 }, NONE) }) },
   { name: 'view-effort-overall', build: () => ({ html: effortHTML('avg', NONE) }) },
   { name: 'view-effort-re', build: () => ({ html: effortHTML('re', NONE) }) },
   { name: 'view-general-capability-overall', build: () => ({ html: generalHTML('avg', { key: 'gap', dir: -1 }, NONE) }) },
