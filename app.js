@@ -61,22 +61,23 @@ async function loadData() {
       openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
       reNote: r.re_test || '', aaIndex: num(r.aa_index || ''), gci: num(r.gci || ''), firstSeen: r.release_date || '',   // set only on a result from the semi-private subset of the RE test
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
-      re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_combined: num(r.re_combined),
+      re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_released: num(r.re_released), re_combined: num(r.re_combined),
     };
   });
   return { rows, icons, meta: JSON.parse(meta) };
 }
 
 /* ---------- constants ---------- */
+const RE_WEIGHT = 1.5;   // v1.5.1: RE combined counts 1.5x in the overall
 const SCORE_KEYS = ['create', 'bugfix', 'gamefeel', 'ideas', 'visuals', 'audio', 're'];
 const SCOPES = [
-  ['overall', 'Overall'], ['create', 'Coding · create'], ['bugfix', 'Coding · bugfix'], ['gamefeel', 'Gamefeel'],
+  ['overall', 'Overall'], ['create', 'Coding · create'], ['bugfix', 'Coding · debugging'], ['gamefeel', 'Gamefeel'],
   ['ideas', 'Creativity · ideas'], ['visuals', 'Creativity · visuals'], ['audio', 'Creativity · audio'],
   ['re', 'Gamefeel · RE'],
 ];
 const SCOPE_LABEL = Object.fromEntries(SCOPES);
 // Overall averages RE combined only — the explorer's RE view toggle (blind/assisted) never changes that.
-const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (combined)` : l)).join(', ');   // the seven subcategories the overall averages
+const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (combined, 1.5x weight)` : l)).join(', ');   // the seven subcategories the overall averages
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
@@ -85,7 +86,7 @@ const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
 const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
-const NEW_MODELS = ['Opus-5.5 · Max', 'Ernie-5.5 Flash Preview', 'Gemini-4-Hydrogen'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = ['Qwen-4-Max'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`);   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
@@ -106,8 +107,9 @@ const standardTag = () => (META.standard ? ` · ${esc(META.standard).toUpperCase
 function deriveFields() {
   DATA.forEach((d) => {
     d.complete = SCORE_KEYS.every((k) => d[k] != null);
-    // the average is only for a model with all seven scores: a partial record has none
-    d.avg = d.complete ? Math.round((SCORE_KEYS.reduce((a, k) => a + d[k], 0) / SCORE_KEYS.length) * 10) / 10 : null;
+    // v1.5.1 overall: weighted mean, RE combined at 1.5x and the six task scores at 1x; only for a model with all seven
+    const wt = (k) => (k === 're' ? RE_WEIGHT : 1);
+    d.avg = d.complete ? Math.round((SCORE_KEYS.reduce((a, k) => a + wt(k) * d[k], 0) / SCORE_KEYS.reduce((a, k) => a + wt(k), 0)) * 10) / 10 : null;
     d.free = d.price === 0;
     d.px = d.price == null ? null : Math.max(d.price, PRICE_FLOOR);   // no price: not drawn on a price chart
     d.value = d.avg != null && d.price > 0 ? Math.round((d.avg / d.price) * 10) / 10 : null;
@@ -116,8 +118,8 @@ function deriveFields() {
 // Overall only ranks models with all seven scores (six scores plus Gamefeel RE combined). Subcategories rank any model with that score.
 // The explorer's RE section can toggle between combined / blind / assisted. RE_VIEW is set by render() for that
 // view only; renderExport() resets it to 'combined', so exports and every other tab always use the combined score.
-const RE_VIEWS = ['combined', 'blind', 'assisted'];
-const RE_FIELD = { combined: 're_combined', blind: 're_blind', assisted: 're_assisted' };
+const RE_VIEWS = ['combined', 'blind', 'assisted', 'released'];
+const RE_FIELD = { combined: 're_combined', blind: 're_blind', assisted: 're_assisted', released: 're_released' };
 let RE_VIEW = 'combined';
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
   : scope === 're' ? (d[RE_FIELD[RE_VIEW]] ?? null) : (d[scope] ?? null));
@@ -137,14 +139,15 @@ const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v
 const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
 const figTitle = (s) => (s === 're' ? `GAMEFEEL · RE (${RE_VIEW.toUpperCase()})` : scopeTitle(s));
 const RE_TIP = {
-  combined: '66% blind + 33% assisted — the score Overall uses',
+  combined: 'Blind, assisted and released combined — the score Overall uses (at 1.5x weight)',
   blind: 'No worked examples shown — the model rates the proposals cold',
   assisted: 'The model studies 39 rated worked examples before rating the rest',
+  released: 'Blind, on proposals for released commercial games',
 };
 const RE_LINES = {
   combined: [
     'Gamefeel RE combined: how well the model gives feedback on game proposals, especially on balance. Overall uses this score.',
-    '66% blind + 33% assisted (39 rated examples first). A blind-only result counts its blind score at 99%.',
+    'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. With released games: 50% blind + 30% assisted + 20% released.',
   ],
   blind: [
     'Gamefeel RE blind: how well the model gives feedback on game proposals, especially on balance.',
@@ -154,14 +157,20 @@ const RE_LINES = {
     'Gamefeel RE assisted: how well the model gives feedback on game proposals, especially on balance.',
     'Assisted: the model studies 39 rated examples first, then rates the rest. Overall uses RE combined, not this view.',
   ],
+  released: [
+    'Gamefeel RE released-blind: feedback on game proposals for released commercial games, such as Balatro, Slay the Spire and World of Warcraft.',
+    'Blind: no worked examples. Overall uses RE combined, not this view.',
+  ],
 };
 /* Where a figure's content starts: the title block has room for two subtitle lines; each extra line pushes the content down. */
 const topFor = (lines) => TOP + 36 * Math.max(0, lines.length - 2);
 const reContextLine = () => (RE_VIEW === 'combined'
-  ? 'Score = RE combined (66% blind + 33% assisted; a blind-only result gets a 1.5x boost on its 66% share). Overall uses this score.'
+  ? 'Score = RE combined (Blind only: 1.1× blind. Blind + assisted: 66% + 34%. With released games: 50% blind + 30% assisted + 20% released.) Overall uses this score at 1.5x weight.'
   : RE_VIEW === 'blind'
     ? 'Score = RE blind (no worked examples shown). Overall uses RE combined, not this view.'
-    : 'Score = RE assisted (39 rated worked examples studied first). Overall uses RE combined, not this view.');
+    : RE_VIEW === 'released'
+      ? 'Score = RE released-blind (released commercial games, no worked examples). Overall uses RE combined, not this view.'
+      : 'Score = RE assisted (39 rated worked examples studied first). Overall uses RE combined, not this view.');
 
 /* ---------- drawing helpers ---------- */
 function iconSvg(d, x, y, size) {
@@ -270,7 +279,7 @@ function overviewFig(hidden) {
     { top: y0, ...fitAxis(rows.length ? rows[0].avg : 1), unit: 'score', empty: 'No model is shown. Tick one on the left.' });
   const foot = footNotes(partial.length ? [`Not in overall (partial record): ${partial.map((d) => `${d.model} ${d.effort}`).join(' · ')}`] : [], chart.H);
   const H = foot.H;
-  let body = frame(WC, H, 'OVERALL · SCORES', [`Average of: ${SUBCATEGORY_LIST}`]);
+  let body = frame(WC, H, 'OVERALL · SCORES', [`Weighted average of: ${SUBCATEGORY_LIST}`]);
   tiles.forEach(([label, value, sub], i) => {
     const x = 64 + i * (tw + 24), y = TOP;
     body += `<rect x="${x.toFixed(1)}" y="${y}" width="${tw.toFixed(1)}" height="${TH}" rx="26" fill="${C.zebra}"/>`;
@@ -291,7 +300,7 @@ function scoresFig(scope, hidden) {
   rows = rows.slice(0, TOP_N);   // the top 35 only
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const lines = scope === 'overall'
-    ? [`Average of: ${SUBCATEGORY_LIST}`, topNote(rows.length, total)]
+    ? [`Weighted average of: ${SUBCATEGORY_LIST}`, topNote(rows.length, total)]
     : scope === 're'
       ? [...RE_LINES[RE_VIEW], `${topNote(rows.length, total)} Scale 0 to the best score; price per task under each column.`]
       : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, `Only models with a score in this subcategory. ${topNote(rows.length, total)}`];
@@ -316,7 +325,8 @@ function reStackedFig() {
   const sections = [
     ['re_blind', 'BLIND', 'No worked examples shown — the model rates the game proposals cold.'],
     ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
-    ['re_combined', 'COMBINED', '66% blind + 33% assisted. A model with no assisted score gets a 1.5x boost on its blind score so it can still rank overall.'],
+    ['re_released', 'RELEASED · BLIND', 'Blind, on proposals for released commercial games such as Balatro, Slay the Spire and World of Warcraft.'],
+    ['re_combined', 'COMBINED', 'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. With released games: 50% blind + 30% assisted + 20% released.'],
   ];
   const GAP = 90;
   let body = '', top = TOP, H = TOP;
@@ -334,7 +344,7 @@ function reStackedFig() {
   H = top - GAP + 60;
   const lines = [
     'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
-    'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Overall uses RE combined only.',
+    'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Overall uses RE combined only, at 1.5x weight.',
     'Every model is shown once per chart, at its best reasoning effort.',
   ];
   return { W: WC, H, body: frame(WC, H, 'GAMEFEEL · RE', lines) + body, wide: true };
@@ -693,7 +703,7 @@ function sizeFig(scope, hidden, highlight = false) {
 /* ---------- figure: profiles (radar) ---------- */
 function radarFig(ids, hidden) {
   const H = 1000, cx = 520, cy = 590, R = 280;
-  const AX = [['create', 'coding · create'], ['bugfix', 'coding · bugfix'], ['gamefeel', 'gamefeel'],
+  const AX = [['create', 'coding · create'], ['bugfix', 'coding · debugging'], ['gamefeel', 'gamefeel'],
     ['ideas', 'creativity · ideas'], ['visuals', 'creativity · visuals'], ['audio', 'creativity · audio'],
     ['re', 'gamefeel · RE']];
   const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / AX.length;
@@ -844,7 +854,7 @@ const EXTRA = [
 ];
 const EXTRA_KEYS = EXTRA.map((e) => e[0]);
 const isPhone = () => matchMedia('(max-width: 700px)').matches;
-const GLANCE_COLS = [['create', 'Create'], ['bugfix', 'Bugfix'], ['gamefeel', 'Gamefeel'], ['ideas', 'Ideas'],
+const GLANCE_COLS = [['create', 'Create'], ['bugfix', 'Debugging'], ['gamefeel', 'Gamefeel'], ['ideas', 'Ideas'],
   ['visuals', 'Visuals'], ['audio', 'Audio'], ['re', 'RE'], ['avg', 'Overall']];
 const nameCell = (d) => `${iconHTML(d)}<span class="nm"><b>${esc(shortName(d))}</b>${d.effort ? `<small>${esc(d.effort)}</small>` : ''}${isNew(d) ? `<span class="newb" style="background:${d.tint}">NEW</span>` : ''}${isWarn(d) ? warnHTML : ''}</span>`;
 const card = (title, sub, inner, foot = '') => `<section class="card"><div class="kick">THE GAMEFEEL BENCHMARK${standardTag()}</div><h2>${esc(title)}</h2>` +
@@ -866,7 +876,7 @@ function rankListHTML(scope, hidden) {
   const title = scope === 'overall' ? 'Overall' : scope === 're' ? `Gamefeel RE · ${RE_VIEW}` : SCOPE_LABEL[scope];
   const list = rows.map((d, i) => { const v = scoreOf(d, scope); return `<li data-m="${esc(d.id)}"><span class="rk">${i + 1}</span><div class="rl"><div class="rn">${nameCell(d)}</div>` +
     `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${scope === 'overall' ? v.toFixed(1) : fmtScore(v)}</b><em>${priceLabel(d)}</em></div></div></li>`; }).join('');
-  const sub = scope === 'overall' ? 'Average of the seven scores. Models with a partial record are not ranked.' : scope === 're' ? 'Feedback on game proposals, especially balancing.' : 'Score out of 100.';
+  const sub = scope === 'overall' ? 'Weighted average of the seven scores (RE combined counts 1.5x). Models with a partial record are not ranked.' : scope === 're' ? 'Feedback on game proposals, especially balancing.' : 'Score out of 100.';
   const subFull = `${sub} ${topNote(rows.length, total)}`;
   const subset = rows.filter((d) => d.reNote);
   return card(title, subFull, rows.length ? `<ol class="rank">${list}</ol>` : '<p class="sub">No model is shown.</p>', subset.length ? esc(reFootnote(subset)) : '');
@@ -910,7 +920,7 @@ function reHelpHTML(sort, hidden) {
   });
   const opts = [['re_combined', 'Combined'], ['gain', 'Gain from examples'], ['re_blind', 'Blind'], ['re_assisted', 'Assisted'], ['model', 'Name']];
   return card('Blind vs assisted RE: how much do examples help?',
-    `○ blind score (no examples) · ● assisted score (after studying 39 rated examples) · ${ph ? '▲' : '▼'} combined (66% blind + 33% assisted). A long bar means the model learns a lot from examples.`,
+    `○ blind score (no examples) · ● assisted score (after studying 39 rated examples) · ${ph ? '▲' : '▼'} combined (all RE parts). A long bar means the model learns a lot from examples.`,
     `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
     (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
     `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own row.`);
@@ -1092,7 +1102,7 @@ function tilesHTML(hidden) {
   const ranked = (key) => bestPerModel(vis.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key]));
   const tiles = [];
   const add = (go, title, sub, body, big = false) => tiles.push({ go, title, sub, body, big });
-  add('explorer/overall/score', 'Overall ranking', 'Average of all seven scores', miniBars(ranked('avg'), (d) => d.avg, (v) => v.toFixed(1), 5), true);
+  add('explorer/overall/score', 'Overall ranking', 'Weighted average, RE at 1.5x', miniBars(ranked('avg'), (d) => d.avg, (v) => v.toFixed(1), 5), true);
   SCOPES.slice(1).forEach(([k, l]) => add(`explorer/${k}/score`, l, k === 're' ? 'Feedback on game proposals' : 'Score out of 100', miniBars(ranked(k), (d) => d[k], fmtScore, 3)));
   const priced = vis.filter((d) => d.complete && d.px != null);
   add('explorer/overall/p2p', 'Price to performance', 'Overall score against price per task, blue = best value line', miniScatter(priced, (d) => d.px, (d) => d.avg));
@@ -1348,6 +1358,7 @@ const EXPORTS = [
   // the three RE sections also ship as separate images, alongside the stacked scores-re above
   { name: 'scores-re-blind', build: () => reSingleFig('blind') },
   { name: 'scores-re-assisted', build: () => reSingleFig('assisted') },
+  { name: 'scores-re-released', build: () => reSingleFig('released') },
   { name: 'scores-re-combined', build: () => reSingleFig('combined') },
   { name: 'size-performance-overall', build: () => sizeFig('overall', NONE) },
   // the Qwen highlight: the overall and RE price charts and the overall size chart, with both Qwen-4 models left off the blue line and measured in purple

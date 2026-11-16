@@ -26,7 +26,7 @@ Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcateg
 | Group      | Subcategory                       | How it is graded                  |
 |------------|-----------------------------------|-----------------------------------|
 | Coding     | Create                            | Answer key, checked by Opus 5.5   |
-| Coding     | Bugfix / Debugging                | Answer key, checked by Opus 5.5   |
+| Coding     | Debugging                         | Answer key, checked by Opus 5.5   |
 | Gamefeel   | Gamefeel                          | Human evaluation                  |
 | Creativity | Ideas                             | Human evaluation                  |
 | Creativity | Visuals                           | Human evaluation                  |
@@ -37,7 +37,7 @@ Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcateg
 
 **Coding – Create:** how well a model can code a new mechanic into a game when prompted to.
 
-**Coding – Bugfix / Debugging:** how well a model can find bugs that were intentionally planted in the projects.
+**Coding – Debugging:** how well a model can find bugs that were intentionally planted in the projects.
 
 **Gamefeel:** how well a model can add new content or balance changes to a game without breaking its balance.
 
@@ -53,7 +53,7 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 ### How it is graded
 
-**Answer-key subcategories (Coding – Create, Coding – Bugfix / Debugging, RE).** Each answer is compared with an answer key. Opus 5.5 checks whether a mismatch is only a formatting error or a near miss, and decides whether the answer is accepted.
+**Answer-key subcategories (Coding – Create, Coding – Debugging, RE).** Each answer is compared with an answer key. Opus 5.5 checks whether a mismatch is only a formatting error or a near miss, and decides whether the answer is accepted.
 
 **Human-evaluated subcategories (Gamefeel, Ideas, Visuals, Audio).** Each of these has about 800 tasks per subcategory per game (about 38,400 human-rated tasks in total). Every task is scored individually from 1 to 10 by a human evaluator, and the average of those scores is the result for that subcategory on that game. Averages are multiplied by 10 to give the score out of 100 used in the data, so an average of 5.43 becomes 54.3.
 
@@ -72,17 +72,18 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 | `minutes_per_task`             | Time spent per task, in minutes. Blank when not known |
 | `context_compression_per_task` | How often the model summarises to fit its context window, per task |
 | `tokens_per_second`            | Output speed. Blank when not known |
-| `create`, `bugfix`             | Coding scores, out of 100 |
+| `create`, `bugfix`             | Coding scores, out of 100 (`bugfix` is the Debugging subcategory; the column keeps its old name) |
 | `gamefeel`                     | Gamefeel score, out of 100 |
 | `ideas`, `visuals`, `audio`    | Creativity scores, out of 100 |
-| `re`                           | Gamefeel Reverse-Evaluation (RE), out of 100 |
-| `avg`                          | Average of the seven scores (the six scores and `re`). Blank unless all seven are in. The overall ranking only uses models with all seven |
+| `re_blind`, `re_assisted`, `re_released` | Gamefeel Reverse-Evaluation (RE) parts, out of 100: blind, assisted (39 rated examples first), and released-blind (released commercial games such as Balatro, Slay the Spire, World of Warcraft) |
+| `re_combined`                  | RE combined, from the parts a model has: blind only = 1.1 × blind; blind + assisted = 0.66 × blind + 0.34 × assisted; all three = 0.5 × blind + 0.3 × assisted + 0.2 × released |
+| `avg`                          | Overall (v1.5.1): weighted average of the six scores (weight 1 each) and `re_combined` (weight 1.5), divided by 7.5. Blank unless all seven are in. The overall ranking only uses models with all seven |
 | `open_weights`                 | `yes` or `no`: whether the model's weights are open. Blank when not known |
 | `size_gb`                      | Model size in GB, for open-weight models where known. Blank when not known |
 | `size_basis`                   | The quantization the size is for, where stated |
 | `re_test`                      | A note when the RE score is from the semi-private subset of the RE test (748 tasks). Every other result is the full test, over 8,000 tasks. Blank for the full test |
 | `aa_index`                     | Artificial Analysis Intelligence Index (artificialanalysis.ai, read 2026-11-13) for the same model and reasoning effort. Blank when the model is not on their leaderboard |
-| `gci`                          | Gamefeel Capabilities Index: comparable across benchmark versions. On v1.5 it equals `avg`; later versions are mapped onto it through models tested in both. History in `data/gci-history.csv` |
+| `gci`                          | Gamefeel Capabilities Index: comparable across benchmark versions. On v1.5 it equals `avg`; later versions (v1.5.1 now) are mapped onto it through models tested in both. History in `data/gci-history.csv` |
 | `release_date`                 | The model's public release date (YYYY-MM-DD); blank for unreleased or stealth models, which get no GCI |
 
 A blank score means the model has no score for that subcategory.

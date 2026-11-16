@@ -1,12 +1,12 @@
 {
-  "updated": "2026-11-14 03:43",
-  "entries": 50,
-  "standard": "v1.5",
+  "updated": "2026-11-16 13:29",
+  "entries": 51,
+  "standard": "v1.5.1",
   "gci": {
     "base": "v1.5",
-    "standard": "v1.5",
-    "a": 1.0,
-    "b": 0.0,
-    "anchors": 0
+    "standard": "v1.5.1",
+    "a": 0.995,
+    "b": 1.885,
+    "anchors": 28
   }
 }
