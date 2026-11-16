@@ -76,7 +76,7 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 | `gamefeel`                     | Gamefeel score, out of 100 |
 | `ideas`, `visuals`, `audio`    | Creativity scores, out of 100 |
 | `re_blind`, `re_assisted`, `re_released` | Gamefeel Reverse-Evaluation (RE) parts, out of 100: blind, assisted (39 rated examples first), and released-blind (released commercial games such as Balatro, Slay the Spire, World of Warcraft) |
-| `re_combined`                  | RE combined, from the parts a model has: blind only = 1.1 × blind; blind + assisted = 0.66 × blind + 0.34 × assisted; all three = 0.5 × blind + 0.3 × assisted + 0.2 × released |
+| `re_combined`                  | RE combined, from the parts a model has: blind only = 1.1 × blind; blind + assisted = 0.66 × blind + 0.34 × assisted; blind + released = 0.75 × blind + 0.25 × released; all three = 0.5 × blind + 0.3 × assisted + 0.2 × released |
 | `avg`                          | Overall (v1.5.1): weighted average of the six scores (weight 1 each) and `re_combined` (weight 1.5), divided by 7.5. Blank unless all seven are in. The overall ranking only uses models with all seven |
 | `open_weights`                 | `yes` or `no`: whether the model's weights are open. Blank when not known |
 | `size_gb`                      | Model size in GB, for open-weight models where known. Blank when not known |

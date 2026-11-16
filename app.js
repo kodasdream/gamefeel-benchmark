@@ -147,7 +147,7 @@ const RE_TIP = {
 const RE_LINES = {
   combined: [
     'Gamefeel RE combined: how well the model gives feedback on game proposals, especially on balance. Overall uses this score.',
-    'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. With released games: 50% blind + 30% assisted + 20% released.',
+    'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. Blind + released: 75% + 25%. All three: 50% blind + 30% assisted + 20% released.',
   ],
   blind: [
     'Gamefeel RE blind: how well the model gives feedback on game proposals, especially on balance.',
@@ -165,7 +165,7 @@ const RE_LINES = {
 /* Where a figure's content starts: the title block has room for two subtitle lines; each extra line pushes the content down. */
 const topFor = (lines) => TOP + 36 * Math.max(0, lines.length - 2);
 const reContextLine = () => (RE_VIEW === 'combined'
-  ? 'Score = RE combined (Blind only: 1.1× blind. Blind + assisted: 66% + 34%. With released games: 50% blind + 30% assisted + 20% released.) Overall uses this score at 1.5x weight.'
+  ? 'Score = RE combined (Blind only: 1.1× blind. Blind + assisted: 66% + 34%. Blind + released: 75% + 25%. All three: 50% blind + 30% assisted + 20% released.) Overall uses this score at 1.5x weight.'
   : RE_VIEW === 'blind'
     ? 'Score = RE blind (no worked examples shown). Overall uses RE combined, not this view.'
     : RE_VIEW === 'released'
@@ -326,7 +326,7 @@ function reStackedFig() {
     ['re_blind', 'BLIND', 'No worked examples shown — the model rates the game proposals cold.'],
     ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
     ['re_released', 'RELEASED · BLIND', 'Blind, on proposals for released commercial games such as Balatro, Slay the Spire and World of Warcraft.'],
-    ['re_combined', 'COMBINED', 'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. With released games: 50% blind + 30% assisted + 20% released.'],
+    ['re_combined', 'COMBINED', 'Blind only: 1.1× blind. Blind + assisted: 66% + 34%. Blind + released: 75% + 25%. All three: 50% blind + 30% assisted + 20% released.'],
   ];
   const GAP = 90;
   let body = '', top = TOP, H = TOP;
