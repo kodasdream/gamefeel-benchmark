@@ -14,7 +14,7 @@ Sonnet-5.5,Medium,anthropic,Anthropic,0.75,sub,1M,30,0,120,62,61,40,35,49,15,4.6
 gpt-6-luna,XHigh,openai,OpenAI,0.34,sub,1M,96,3,200,50,15,0,15,28,15,0,0.26,,0.0884,16.4,no,,,,23,18.2,2026-09-22
 Opus-5.5,Medium,anthropic,Anthropic,0.88,sub,1M,210,3,67,63,58,46,39,55,20,7.61,,,8.371,39.1,no,,,,48,40.8,2026-09-22
 GLM-5.3-Flash,Max,zhipu,Zhipu AI,0.58,sub,1M,270,1,110,57,62,32,25,18,22,0.36,,,0.396,28.9,yes,730,quantization not stated,,28,30.6,2026-08-26
-Qwen-3.8-Flash-Next,XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,15,0,140,55,55,50,42,27,40,6.46,5.29,,6.0622,37.1,yes,128,quantization not stated,,29,38.8,2026-08-26
+Qwen-3.8-Flash-Next,XHigh,alibaba,Alibaba Qwen,0.02,sub,1M,15,0,140,55,55,50,42,27,40,6.46,5.29,10.9,6.997,37.3,yes,128,quantization not stated,,29,39,2026-08-26
 Haiku-5.5,Max,anthropic,Anthropic,0.12,sub,1M,22,0,180,56,50,43,31,48,19,1.53,,,1.683,33.3,no,,,,36,35,2026-10-07
 Deepseek V4.1-Flash-1017,Max,deepseek,DeepSeek,0.85,api,1M,85,0,345,65,54,37,32,55,50,2.85,7.67,16.93,7.112,40.5,yes,800,Q8,,33,42.2,2026-10-17
 Gemini-4-Argon,High,google,Google DeepMind,4.6,sub,1M,35,1,158,63,55,35,30,65,30,6.69,,,7.359,38.5,no,,,,50,40.2,2026-09-30
