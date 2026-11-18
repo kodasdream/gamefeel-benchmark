@@ -51,3 +51,5 @@ Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,24,1,440,63,59,54,50,6
 Opus-5.5,Max,anthropic,Anthropic,6.93,sub,1M,90,0,67,65,66,50,41,63,26,13.42,98.75,25.49,41.433,49.8,no,,,,58,51.4,2026-09-22
 Qwen-4-Max,XHigh,alibaba,Alibaba Qwen,0.47,sub,1M,,,70,,,,,,,9,14.51,16.58,12.169,,no,,,,,,
 Hy4-Flash,High,tencent,Tencent Hunyuan,0.01,api,1M,,,,,,,,,,5.48,7.23,7.57,6.423,,,,,,,,
+gpt-6.2-astra,Max,openai,OpenAI,,sub,1M,,,,,,,,,,8.69,26.3,,14.6774,,,,,"Semi-private subset of the RE test, 765 tasks",,,
+gpt-6.2-astra,High,openai,OpenAI,,sub,1M,,,,,,,,,,8.63,26.6,,14.7398,,,,,"Semi-private subset of the RE test, 765 tasks",,,

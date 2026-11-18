@@ -86,7 +86,7 @@ const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
 const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
-const NEW_MODELS = ['Hy4-Flash'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = ['gpt-6.2-astra'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`);   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
@@ -134,7 +134,12 @@ const shortName = (d) => d.model + (d.reNote ? '*' : '');
 const modelEffort = (d) => [d.model, d.effort].filter(Boolean).join(' · ');
 const namesOf = (rows) => [...new Set(rows.map((d) => d.model))].join(', ');
 const RE_FULL = 'Every other result is the full RE test, over 8,000 tasks.';
-const reFootnote = (rows) => `* ${namesOf(rows)}: ${[...new Set(rows.map((d) => d.reNote))].join('; ')}. ${RE_FULL}`;
+// one asterisk line per distinct note (e.g. GPT-6.1 on 748 tasks, GPT-6.2 on 765), then the full-test sentence
+const reFootnote = (rows) => {
+  const byNote = new Map();
+  rows.forEach((d) => { if (!byNote.has(d.reNote)) byNote.set(d.reNote, []); byNote.get(d.reNote).push(d); });
+  return [...byNote].map(([note, rs]) => `* ${namesOf(rs)}: ${note}.`).join(' ') + ` ${RE_FULL}`;
+};
 const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
 const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
 const figTitle = (s) => (s === 're' ? `GAMEFEEL · RE (${RE_VIEW.toUpperCase()})` : scopeTitle(s));
