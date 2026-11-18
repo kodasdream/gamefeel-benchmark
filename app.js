@@ -859,7 +859,7 @@ function ledgerFig(sort, hidden) {
 const EXTRA = [
   ['glance', 'Every score at a glance', 'All seven scores in one sortable heatmap'],
   ['rehelp', 'Blind vs assisted RE', 'How much the 39 rated examples help each model'],
-  ['released', 'Released vs unreleased games', 'Who reads released games better than unreleased ones'],
+  ['released', 'Released vs unreleased games', 'How much weaker each model is on the unreleased games'],
   ['effort', 'Is more effort worth it?', 'Each model across its reasoning-effort levels'],
   ['general', 'Gamefeel vs general capability', 'Outliers against the Artificial Analysis index'],
   ['progress', 'Progress over time', 'GCI, the best score so far, by date'],
@@ -939,38 +939,65 @@ function reHelpHTML(sort, hidden) {
 }
 
 /* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
-function releasedHTML(sort, hidden, mode = 'pts') {   // mode 'pts': difference in points; 'pct': released vs unreleased blind, in %
+function releasedHTML(sort, hidden, mode = 'pts') {
+  // Vertical bars: solid = RE blind on the benchmark's unreleased games, dashed outline = RE blind on released games.
+  // The label on top says how much weaker the unreleased score is: points (unreleased − released) or percent of the released score.
   const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_released != null);
   const pct = mode === 'pct';
-  const pctOf = (d) => (d.re_blind > 0 ? ((d.re_released - d.re_blind) / d.re_blind) * 100 : null);
-  const gapOf = (d) => (pct ? pctOf(d) ?? Infinity : d.re_released - d.re_blind);
-  const fmtPct = (v) => (v == null ? 'n/a' : `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v)).toLocaleString('en-US')}%`);
-  const fmtGap = (d) => (pct ? fmtPct(pctOf(d)) : `${d.re_released - d.re_blind >= 0 ? '+' : '−'}${Math.abs(d.re_released - d.re_blind).toFixed(1)}`);
-  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? gapOf(d) : k === 'model' ? d.model : d[k]));
+  const dropPts = (d) => d.re_blind - d.re_released;                                       // negative = weaker on unreleased
+  const dropPct = (d) => (d.re_released > 0 ? (dropPts(d) / d.re_released) * 100 : null);
+  const fmtPct = (v) => (v == null ? 'n/a' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v))}%`);
+  const fmtPts = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}`;
+  const label = (d) => (pct ? fmtPct(dropPct(d)) : fmtPts(dropPts(d)));
+  const sizeOf = (d) => -(pct ? dropPct(d) ?? 0 : dropPts(d));                             // size of the drop: larger = weaker on unreleased
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? sizeOf(d) : k === 'model' ? d.model : d[k]));
+  const n = rows.length, ph = isPhone();
+  const W = Math.max(ph ? 860 : 1000, 60 + n * 74), L = 46, R = W - 10, T = 44, B = T + 300;
   const top = Math.max(10, Math.ceil(Math.max(0, ...base.flatMap((d) => [d.re_blind, d.re_released])) / 10) * 10);
-  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 20 : 300, R = W - (ph ? 90 : 150), rowH = ph ? 76 : 46, H = (ph ? 66 : 50) + rows.length * rowH, X = (v) => L + (v / top) * (R - L);
+  const Y = (v) => B - (v / top) * (B - T);
+  const pitch = (R - L) / Math.max(n, 1), bw = Math.min(pitch * 0.68, 86);
+  const wrap = (t, maxW) => {   // the model name in lines no wider than maxW, broken at spaces and hyphens
+    const parts = t.replace(/-/g, '- ').split(' ').filter(Boolean), out = [];
+    let cur = '';
+    for (const w of parts) {
+      const next = cur ? (cur.endsWith('-') ? cur + w : `${cur} ${w}`) : w;
+      if (cur && textW(next, 12.5, 800) > maxW) { out.push(cur); cur = w; } else cur = next;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  const names = rows.map((d) => wrap(shortName(d), pitch - 6));
+  const nameLines = Math.max(1, ...names.map((l) => l.length));
+  const H = B + 22 + nameLines * 15 + 18;
   let s = '';
-  for (let t = 0; t <= top; t += top > 50 ? 20 : 10) s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`;
+  for (let t = 0; t <= top; t += top > 50 ? 20 : 10) s += `<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${L - 8}" y="${Y(t) + 4}" class="ax" text-anchor="end">${t}</text>`;
   rows.forEach((d, i) => {
-    const y = (ph ? 82 : 52) + i * rowH, up = d.re_released >= d.re_blind;
-    const name = `${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}`;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · unreleased blind ${fmtScore(d.re_blind)} · released blind ${fmtScore(d.re_released)} · ${fmtGap(d)}${pct ? '' : ' points'}`)}">`;
-    s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
-    s += ph ? `<text x="${L}" y="${y - 20}" class="lbl">${name}</text>` : `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${name}</text>`;
-    s += `<line x1="${X(d.re_blind)}" x2="${X(d.re_released)}" y1="${y}" y2="${y}" stroke="${d.tint}" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>`;
-    s += `<circle cx="${X(d.re_blind)}" cy="${y}" r="7.5" fill="#fff" stroke="${d.tint}" stroke-width="3"/><circle cx="${X(d.re_released)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
-    s += `<text x="${X(Math.max(d.re_blind, d.re_released)) + 15}" y="${y + 5}" class="note">${up ? '▲ ' : '▼ '}${fmtGap(d)}</text></g>`;
+    const cx = L + pitch * (i + 0.5), x = cx - bw / 2, yu = Y(d.re_blind), yr = Y(d.re_released), y0 = Y(0);
+    const higher = d.re_blind >= d.re_released;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · unreleased ${fmtScore(d.re_blind)} · released ${fmtScore(d.re_released)} · ${fmtPts(dropPts(d))} points (${fmtPct(dropPct(d))})`)}">`;
+    s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${T - 50}" width="${pitch.toFixed(1)}" height="${H - T + 50}" fill="transparent"/>`;
+    s += `<rect x="${x.toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0 - yr).toFixed(1)}" fill="${d.tint}" fill-opacity=".07" stroke="${d.tint}" stroke-width="2" stroke-dasharray="6 5"/>`;
+    s += `<rect x="${x.toFixed(1)}" y="${yu.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, y0 - yu).toFixed(1)}" fill="${d.tint}" rx="3"/>`;
+    if (higher) s += `<line x1="${x.toFixed(1)}" x2="${(x + bw).toFixed(1)}" y1="${yr.toFixed(1)}" y2="${yr.toFixed(1)}" stroke="#fff" stroke-width="2.5" stroke-dasharray="6 5"/>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(yu - 7).toFixed(1)}" text-anchor="middle" style="font-size:15px;font-weight:800;fill:${d.tint};stroke:#fff;stroke-width:4px;paint-order:stroke;stroke-linejoin:round">${fmtScore(d.re_blind)}</text>`;
+    const yTop = Math.min(yu - (higher ? 24 : 0), yr) - 8;
+    s += `<text x="${cx.toFixed(1)}" y="${yTop.toFixed(1)}" text-anchor="middle" class="note">${label(d)}</text>`;
+    if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(yTop - 16).toFixed(1)}" text-anchor="middle" style="font-size:10.5px;font-weight:800;letter-spacing:.5px;fill:${d.tint}">NEW!</text>`;
+    names[i].forEach((ln, k) => { s += `<text x="${cx.toFixed(1)}" y="${B + 20 + k * 15}" text-anchor="middle" style="font-size:12.5px;font-weight:800;fill:var(--ink)">${esc(ln)}</text>`; });
+    s += `<text x="${cx.toFixed(1)}" y="${B + 20 + names[i].length * 15 + 2}" text-anchor="middle" class="ax">${esc(d.effort || '')}</text></g>`;
   });
-  const opts = [['gap', 'Released advantage'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['model', 'Name']];
-  const diffs = base.map((d) => d.re_released - d.re_blind), avgGap = diffs.length ? diffs.reduce((a, v) => a + v, 0) / diffs.length : 0;
+  s += `<line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="var(--ink)" stroke-opacity=".25" stroke-width="1.5"/>`;
+  const opts = [['gap', 'Biggest drop'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['model', 'Name']];
+  const avgDrop = base.length ? base.reduce((a, d) => a + dropPts(d), 0) / base.length : 0;
   const sumB = base.reduce((a, d) => a + d.re_blind, 0), sumR = base.reduce((a, d) => a + d.re_released, 0);
-  const pooled = sumB > 0 ? ((sumR - sumB) / sumB) * 100 : null;
+  const pooled = sumR > 0 ? ((sumB - sumR) / sumR) * 100 : null;
   const modeSeg = `<div class="seg" role="group" aria-label="Show the difference as">${[['pts', 'Points'], ['pct', 'Percent']].map(([k, l]) => `<button type="button" data-rmode="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  return card('Released vs unreleased games: who reads known games better?',
-    `○ RE blind on the benchmark's unreleased games · ● RE blind on released commercial games (Balatro, Slay the Spire, World of Warcraft and others). ▲ the model scores higher on released games, ▼ lower. ${pct ? 'Percent: how much higher the released score is than the unreleased blind score.' : 'Points: released minus unreleased.'}`,
+  const svg = `<svg class="hsvg" viewBox="0 0 ${W} ${H}"${ph ? ` style="min-width:${W * 0.86}px"` : ''}>${s}</svg>`;
+  return card('Released vs unreleased games: how much weaker on unseen games?',
+    `Solid bar: RE blind on the benchmark's own unreleased games. Dashed outline: RE blind on released commercial games (Balatro, Slay the Spire, World of Warcraft and others). The label on top is how much weaker the unreleased score is${pct ? ', as a percent of the released score' : ', in points'}.`,
     `<div class="sortbar"><span class="sortgrp"><span class="seg-cap">Show</span>${modeSeg}</span><span class="sortgrp"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></span></div>` +
-    (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
-    `Both scores are blind (no worked examples). A large ▲ can mean the model already knows these games from its training data. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own row. Average difference: ${avgGap >= 0 ? '+' : '−'}${Math.abs(avgGap).toFixed(1)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on released games` : ''}.${pct ? ' A very low unreleased score makes the percentage very large, so compare those rows with care.' : ''}`);
+    (rows.length ? (ph ? `<div class="hscroll">${svg}</div>` : svg) : '<p class="sub">No model with both scores is shown.</p>'),
+    `Both scores are blind (no worked examples). A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. A bar taller than its outline means the model did better on the unreleased games. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own bar. On average the unreleased score is ${fmtPts(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
 }
 
 /* ---------- is more effort worth it: each model's effort levels as one line ---------- */
@@ -1163,8 +1190,8 @@ function tilesHTML(hidden) {
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
   const ra = vis.filter((d) => d.re_blind != null && d.re_assisted != null).sort((a, b) => (b.re_assisted - b.re_blind) - (a.re_assisted - a.re_blind)).slice(0, 3);
   add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${d.re_blind}%;width:${Math.max(1, d.re_assisted - d.re_blind)}%;background:${d.tint}"></i></span><em>+${(d.re_assisted - d.re_blind).toFixed(1)}</em></li>`).join('')}</ol>`);
-  const rv = vis.filter((d) => d.re_blind != null && d.re_released != null).sort((a, b) => (b.re_released - b.re_blind) - (a.re_released - a.re_blind)).slice(0, 3);
-  add('released', 'Released vs unreleased games', 'Who reads known games better', `<ol class="mini">${rv.map((d) => { const g = d.re_released - d.re_blind; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '▲ +' : '▼ −'}${Math.abs(g).toFixed(1)}</em></li>`; }).join('')}</ol>`);
+  const rv = vis.filter((d) => d.re_blind != null && d.re_released > 0).sort((a, b) => (a.re_blind - a.re_released) / a.re_released - (b.re_blind - b.re_released) / b.re_released).slice(0, 3);
+  add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((d.re_blind - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
   const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
   const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
   add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(1)}`).join(' → ')}</em></li>`).join('')}</ol>`);
