@@ -98,6 +98,9 @@ const WC = 2600;                   // bar charts: 24 columns side by side, wide 
 const WL = 2480;
 const WP = 3400;                 // price-to-performance canvas: 2:1 (18:9), wider than the rest for room
 const TOP = 280;                   // first content line, below the title block
+// RE board (opt-in look in the RE section): the five parts in the validated reference categorical slots 1-5, fixed order
+const RE_PART_COLOR = { re_blind: '#2a78d6', re_blind_hard: '#eb6834', re_assisted: '#1baf7a', re_assisted_hard: '#eda100', re_released: '#e87ba4' };
+const LEGACY_FILL = '#c3cad8';     // an older v1.5.1 RE score: its parts are unknown, so one neutral block
 const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb', purple: '#9c27b0' };
 const NONE = new Set();
 const $ = (s) => document.querySelector(s);
@@ -127,6 +130,18 @@ const RE_PARTS = [['re_blind', 'blind', 5], ['re_blind_hard', 'blind hard', 2], 
 const RE_RULE = 'Combined = (5 × blind + 2 × blind hard + 3 × assisted + 1 × assisted hard + 2 × released) ÷ 13. A part a model has not run is estimated from the parts it has.';
 const RE_HARD = 'Hard: the same run, scored only on the cards the designers rated by hand, at 1x.';
 // "3 of 5 parts (no assisted, assisted hard)" for a tooltip
+// a combined column split into what each part adds (RE board); a part the model has not run is estimated as the build does
+function reSegs(d) {
+  if (d.reLegacy) return [{ v: d.re_combined, color: LEGACY_FILL, legacy: true }];
+  const sc = META.re_combined && META.re_combined.scale;
+  const have = RE_PARTS.filter(([k]) => d[k] != null);
+  if (!sc || !have.length) return null;
+  const level = have.reduce((a, [k, , w]) => a + (w * d[k]) / sc[k], 0) / have.reduce((a, [, , w]) => a + w, 0);
+  return RE_PARTS.map(([k, l, w]) => ({ k, l, v: (w * (d[k] != null ? d[k] : sc[k] * level)) / 13, color: RE_PART_COLOR[k], est: d[k] == null }));
+}
+const segTip = (segs) => (segs && !segs[0].legacy ? ` · adds: ${segs.map((g) => `${g.l} ${g.v.toFixed(1)}${g.est ? ' (est.)' : ''}`).join(', ')}` : '');
+let HATCH_N = 0;
+const hatchDefs = (id, color) => `<pattern id="${id}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="${color}" fill-opacity=".18"/><rect width="5" height="14" fill="${color}" fill-opacity=".9"/></pattern>`;
 const reParts = (d) => { if (d.reLegacy) return 'older v1.5.1 RE score, kept until re-run'; const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l); return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts'; };
 let RE_VIEW = 'combined';
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
@@ -245,7 +260,7 @@ function fitAxis(maxVal) {
    body; the caller adds the frame. */
 function columnChart(items, o) {
   if (!items.length) return { H: o.top + 700, body: emptyNote(WC, o.top + 200, o.empty) };
-  const X0 = 64 + COL.axis, X1 = WC - 64, PW = X1 - X0;
+  const X0 = 64 + COL.axis, X1 = (o.width || WC) - 64, PW = X1 - X0;
   const yT = o.top + 70, yB = yT + COL.plot;
   // room under the axis for the longest diagonal name, plus a footnote line below it
   const drop = Math.max(...items.map((it) => textW(shortName(it.d), 23, 800))) * Math.SQRT1_2;
@@ -258,6 +273,9 @@ function columnChart(items, o) {
   const iSize = Math.min(40, pitch * 0.8);
   const x0 = X0 + (PW - pitch * items.length) / 2;
   let s = '';
+  const hid = {};   // hatch patterns for estimated parts, one per colour, unique to this chart
+  items.forEach((it) => (it.segs || []).forEach((g) => { if (g.est && !hid[g.color]) { hid[g.color] = `hatch${++HATCH_N}`; } }));
+  if (Object.keys(hid).length) s += `<defs>${Object.entries(hid).map(([c, id]) => hatchDefs(id, c)).join('')}</defs>`;
   o.ticks.forEach((t) => {
     const y = Y(t).toFixed(1);
     s += `<line x1="${X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="${t === 0 ? C.ink : C.track}" stroke-opacity="${t === 0 ? 0.25 : 1}" stroke-width="2"/>`;
@@ -270,7 +288,19 @@ function columnChart(items, o) {
     const nx = Math.max(cx + 12, 24 + textW(shortName(d), 23, 800) * Math.SQRT1_2);   // a long diagonal name stays inside the figure
     s += `<g class="col" data-m="${esc(d.id)}" data-tip="${esc([shortName(d), d.effort, d.lab, it.tip].filter(Boolean).join(' · '))}">`;
     s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${yT - 60}" width="${pitch.toFixed(1)}" height="${COL.plot + COL.label + 60}" fill="transparent"/>`;
-    s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
+    if (it.segs) {   // stacked parts, bottom up, with a 2-unit surface gap between them; the top one carries the rounded cap
+      const segs = it.segs.filter((g) => g.v > 0), tot = segs.reduce((a, g) => a + g.v, 0);
+      let yy = yB;
+      segs.forEach((g, j) => {
+        const hh = (g.v / tot) * h, yTop = yy - hh, yBot = j ? yy - 2 : yy;
+        if (yBot - yTop > 0.5) {
+          const fill = g.est ? `url(#${hid[g.color]})` : g.color;
+          s += j === segs.length - 1 ? `<path d="${capPath(cx - bw / 2, cx + bw / 2, yTop, yBot, Math.min(8, bw / 2, yBot - yTop))}" fill="${fill}"/>`
+            : `<rect x="${(cx - bw / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${(yBot - yTop).toFixed(1)}" fill="${fill}"/>`;
+        }
+        yy = yTop;
+      });
+    } else s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
     s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="${vFont.toFixed(1)}" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
     if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(top - 52).toFixed(1)}" font-size="20" font-weight="800" letter-spacing="1" text-anchor="middle" fill="${d.tint}">NEW!</text>`;
     if (isWarn(d)) s += warnSvg(cx, top - (isNew(d) ? 82 : 54));
@@ -392,6 +422,97 @@ function reStackedFig() {
   return { W, H, body: frame(W, H, 'GAMEFEEL · RE', lines) + body, wide: true, exportScale: 2 };
 }
 
+/* ---------- figure: the RE board, an opt-in look of the RE section (Look: Board) and the export scores-re-board ----------
+   The five parts' weights as a ribbon, RE combined with each column split into what each part adds, then each part ranked on
+   its own. On the site it is one chart wide with the parts three across; the export is twice as wide, five across, exportScale 2. */
+const PART_DESC = {
+  re_blind: 'Rates the game proposals cold', re_blind_hard: 'Blind run, hand-rated cards only',
+  re_assisted: 'Studies 39 rated examples first', re_assisted_hard: 'Assisted run, hand-rated cards only',
+  re_released: 'Blind, on released commercial games',
+};
+function reRibbonSvg(w, y) {   // the five parts at 5 / 2 / 3 / 1 / 2 of 13, in their colours
+  const x0 = 64, x1 = w - 64, gap = 10, span = x1 - x0 - gap * (RE_PARTS.length - 1);
+  let s = '', x = x0;
+  RE_PARTS.forEach(([k, l, wt]) => {
+    const sw = (span * wt) / 13, name = l[0].toUpperCase() + l.slice(1);
+    s += `<text x="${(x + 2).toFixed(1)}" y="${y}" font-size="22" font-weight="800" fill="${C.ink}">${esc(name)}</text>`;
+    s += `<rect x="${x.toFixed(1)}" y="${y + 15}" width="${sw.toFixed(1)}" height="12" rx="6" fill="${RE_PART_COLOR[k]}"/>`;
+    s += `<text x="${(x + 2).toFixed(1)}" y="${y + 56}" font-size="19" font-weight="700" fill="${C.soft}" style="font-variant-numeric:tabular-nums">${wt} of 13 · ${Math.round((wt / 13) * 100)}%</text>`;
+    x += sw + gap;
+  });
+  return s;
+}
+function partPanel(k, label, w, x, y, pw, hidden) {
+  const color = RE_PART_COLOR[k];
+  const all = bestPerModel(DATA.filter((d) => !hidden.has(d.id) && d[k] != null).sort((a, b) => b[k] - a[k]));
+  const rows = all.slice(0, 8), max = rows.length ? Math.max(rows[0][k], 0.01) : 1;
+  const nameX = x + 88, track = pw - 88, rowH = 76, y0 = y + 142;
+  let s = `<rect x="${x.toFixed(1)}" y="${y}" width="${pw.toFixed(1)}" height="10" rx="5" fill="${color}"/>`;
+  s += `<text x="${x.toFixed(1)}" y="${y + 62}" font-size="34" font-weight="800" fill="${C.ink}">${esc(label.toUpperCase())}</text>`;
+  s += `<text x="${(x + pw).toFixed(1)}" y="${y + 62}" font-size="23" font-weight="800" text-anchor="end" fill="${C.soft}">${w} of 13</text>`;
+  s += `<text x="${x.toFixed(1)}" y="${y + 98}" font-size="21" font-weight="600" fill="${C.faint}">${esc(PART_DESC[k])}</text>`;
+  rows.forEach((d, i) => {
+    const ry = y0 + i * rowH, v = d[k];
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · ${label} ${fmtScore(v)}`)}">`;
+    s += `<rect x="${x.toFixed(1)}" y="${ry - 34}" width="${pw.toFixed(1)}" height="${rowH}" fill="transparent"/>`;
+    s += `<text x="${(x + 18).toFixed(1)}" y="${ry + 8}" font-size="22" font-weight="800" text-anchor="middle" fill="${i === 0 ? C.ink : C.faint}" style="font-variant-numeric:tabular-nums">${i + 1}</text>`;
+    s += iconSvg(d, (x + 40).toFixed(1), ry - 20, 34);
+    s += `<text x="${nameX.toFixed(1)}" y="${ry + 6}" font-size="24" font-weight="800" fill="${C.ink}">${esc(shortName(d))}<tspan dx="10" font-size="20" font-weight="600" fill="${C.soft}">${esc(d.effort)}</tspan></text>`;
+    s += `<text x="${(x + pw).toFixed(1)}" y="${ry + 6}" font-size="26" font-weight="800" text-anchor="end" fill="${C.ink}" style="font-variant-numeric:tabular-nums">${fmtScore(v)}</text>`;
+    s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${track.toFixed(1)}" height="10" rx="5" fill="${C.track}"/>`;
+    s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${Math.max(10, (track * v) / max).toFixed(1)}" height="10" rx="5" fill="${color}"/>`;
+    s += `</g>`;
+  });
+  const more = all.length > rows.length ? `Top ${rows.length} of ${all.length} models` : `All ${all.length} models`;
+  s += `<text x="${x.toFixed(1)}" y="${(y0 + rows.length * rowH - 4).toFixed(1)}" font-size="20" font-weight="600" fill="${C.faint}">${more}</text>`;
+  return { body: s, H: 142 + rows.length * rowH + 10 };
+}
+function reBoardFig(hidden = NONE, wide = false) {
+  const W = wide ? 2 * WC : WC, cols = wide ? 5 : 3, RIB = 112;
+  const lines = [
+    'Gamefeel RE board: RE combined split into what each part adds, then every part ranked on its own. Overall uses RE combined at 1.5x weight.',
+    'Assisted runs study 39 rated examples first. Hard: the same run, scored only on the cards the designers rated by hand.',
+  ];
+  let top = topFor(lines), body = reRibbonSvg(W, top + 6);   // below the site's header crop, so the part names show
+  top += RIB + 10;
+  const all = bestPerModel(DATA.filter((d) => !hidden.has(d.id) && d.re_combined != null).sort((a, b) => b.re_combined - a.re_combined));
+  const rows = all.slice(0, TOP_N).reverse();
+  const items = rows.map((d) => { const segs = reSegs(d); return { d, v: d.re_combined, value: fmtScore(d.re_combined), segs, tip: `combined ${fmtScore(d.re_combined)} · ${reParts(d)}${segTip(segs)}` }; });
+  let head = `<text x="64" y="30" font-size="40" font-weight="800" fill="${C.ink}">COMBINED</text>`;
+  head += `<text x="64" y="70" font-size="23" font-weight="500" fill="${C.soft}">${esc(`What Overall uses, each column split into what each part adds. ${topNote(rows.length, all.length)}`)}</text>`;
+  const legend = [['hatch', 'Hatched: part not run, estimated from the others'], ['legacy', '† Grey: older v1.5.1 RE score']];
+  head += `<defs>${hatchDefs('hatchLegend', C.soft)}</defs>`;
+  let lx = W - 64;
+  for (let i = legend.length - 1; i >= 0; i--) {
+    const [kind, t] = legend[i];
+    lx -= textW(t, 21, 600);
+    head += `<text x="${lx.toFixed(1)}" y="${wide ? 32 : 112}" font-size="21" font-weight="600" fill="${C.soft}">${esc(t)}</text>`;
+    lx -= 40;
+    head += `<rect x="${lx.toFixed(1)}" y="${wide ? 8 : 88}" width="30" height="30" rx="6" fill="${kind === 'hatch' ? 'url(#hatchLegend)' : LEGACY_FILL}"/>`;
+    lx -= 44;
+  }
+  const htop = wide ? 96 : 140;
+  const chart = withLegacy(true, () => columnChart(items, { top: htop, width: W, ...fitAxis(rows.length ? rows[rows.length - 1].re_combined : 1), unit: 'score', empty: 'No model has a combined RE score yet.' }));
+  body += `<g transform="translate(0 ${top})">${head}${chart.body}</g>`;
+  top += chart.H - 120;
+  body += `<line x1="64" x2="${W - 64}" y1="${top}" y2="${top}" stroke="${C.track}" stroke-width="3"/>`;
+  top += 64;
+  const gap = 64, pw = (W - 128 - gap * (cols - 1)) / cols;
+  for (let r = 0; r * cols < RE_PARTS.length; r++) {
+    let ph = 0;
+    RE_PARTS.slice(r * cols, r * cols + cols).forEach(([k, l, w], i) => {
+      const p = partPanel(k, l[0].toUpperCase() + l.slice(1), w, 64 + i * (pw + gap), top, pw, hidden);
+      body += p.body; ph = Math.max(ph, p.H);
+    });
+    top += ph + 40;
+  }
+  const subset = DATA.filter((d) => !hidden.has(d.id) && d.reNote && RE_PARTS.some(([k]) => d[k] != null));
+  const notes = [subset.length ? reFootnote(subset) : null].filter(Boolean).flatMap((t) => wrapText(t, 20, 600, W - 128));
+  notes.forEach((t, i) => { body += `<text x="64" y="${top + 30 * i}" font-size="20" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
+  const H = top + 30 * notes.length + 50;
+  return { W, H, body: frame(W, H, 'GAMEFEEL · RE BOARD', lines) + body, wide: true, ...(wide ? { exportScale: 2 } : {}) };
+}
+
 /* ---------- figure: one RE section on its own — exported separately as scores-re-blind / -assisted / -combined ---------- */
 function reSingleFig(view) { return withLegacy(view === 'combined', () => reSingleFigInner(view)); }
 function reSingleFigInner(view) {
@@ -456,12 +577,11 @@ const LABEL_STATS = { fallback: 0, purple: 0 };   // labels that found no clear 
 function placeLabels(pts, T, B, WP, marks = []) {
   const R = WP - 80, placed = [];
   const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-  const dots = pts.map((p) => ({ x0: p.x - 32, x1: p.x + 32, y0: p.y - 32, y1: p.y + 32 }));
-  const boxFor = (p, right, ly) => {
-    const iconX = right ? p.x + 44 : p.x - 84;
-    const textX = right ? iconX + 50 : iconX - 10;
-    const x0 = right ? iconX : textX - p.w, x1 = right ? textX + p.w : iconX + 40;
-    return { iconX, textX, anchor: right ? 'start' : 'end', x0, x1, y: ly, y0: ly - 25, y1: ly + 10 };
+  const dots = pts.map((p) => ({ x0: p.x - 38, x1: p.x + 38, y0: p.y - 38, y1: p.y + 38 }));
+  const boxFor = (p, right, ly) => {   // the lab logo sits in the point, so the label is text only
+    const textX = right ? p.x + 46 : p.x - 46;
+    const x0 = right ? textX : textX - p.w, x1 = right ? textX + p.w : textX;
+    return { iconX: right ? textX - 26 : textX + 6, textX, anchor: right ? 'start' : 'end', x0, x1, y: ly, y0: ly - 25, y1: ly + 10 };
   };
   [...pts].sort((a, b) => a.y - b.y).forEach((p) => {
     const sides = p.x + 100 + p.w <= R + 60 ? [true, false] : [false, true];
@@ -603,6 +723,7 @@ function ppFig(scope, hidden, highlight = false) {
   // pareto frontier: straight segments between the non-dominated points
   // the blue line is the frontier of the rows that are not left off it (see the measures above)
   if (front.length > 1) {
+    s += valueBand(front.map((d) => [X(d.px), Y(scoreOf(d, scope))]), B);
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
   }
   // purple, highlight figure only: each Qwen-4 model gets a bracket from the middle of its dot straight down to the blue line directly below it
@@ -632,17 +753,34 @@ function ppFig(scope, hidden, highlight = false) {
   pts.forEach((p) => {
     const d = p.d;
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScore(p.sc)}`)}">`;
-    if (front.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
-    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="26" fill="${d.tint}" fill-opacity=".15"/>`;
-    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${d.tint}"/>`;
-    if (isWarn(d)) s += warnSvg(p.x, p.y - 34, 30);
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
-    s += iconSvg(d, p.iconX, p.ly - 20, 40);
-    s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan></text>`;
+    s += logoPoint(d, p.x, p.y, front.includes(d));
+    if (isWarn(d)) s += warnSvg(p.x, p.y - 40, 30);
     s += `</g>`;
+  });
+  pts.forEach((p) => {   // labels after every point, so no disc covers a label
+    const d = p.d;
+    s += `<g data-m="${esc(d.id)}"><text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan></text></g>`;
   });
   noteLines.forEach((t, i) => { s += `<text x="64" y="${B + 130 + 36 * i}" font-size="22" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
   return { W: WP, H, body: frame(WP, H, title, lines) + s, wide: true };
+}
+
+// a point on the price and size charts: the lab logo in a white disc ringed in the lab colour; on the frontier an azure ring around it
+function logoPoint(d, x, y, onFront, purple = false) {
+  let s = '';
+  if (onFront) s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="35" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
+  if (purple) s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="35" fill="none" stroke="${C.purple}" stroke-width="5"/>`;
+  s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="27" fill="#ffffff" stroke="${d.tint}" stroke-width="4"/>`;
+  s += iconSvg(d, (x - 16).toFixed(1), (y - 16).toFixed(1), 32);
+  return s;
+}
+// the value band: the area under the frontier, shaded from the line and fading out toward the axis
+function valueBand(path, B) {
+  if (path.length < 2) return '';
+  const id = `vband${++HATCH_N}`;
+  const d = `M${path[0][0].toFixed(1)} ${B}` + path.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join('') + `L${path[path.length - 1][0].toFixed(1)} ${B}Z`;
+  return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.azure}" stop-opacity=".16"/><stop offset=".7" stop-color="${C.azure}" stop-opacity="0"/></linearGradient></defs><path d="${d}" fill="url(#${id})"/>`;
 }
 
 // splits a footnote into lines no wider than maxW, measured in the figure's own units
@@ -711,6 +849,7 @@ function sizeFig(scope, hidden, highlight = false) {
 
   // pareto frontier: straight segments between the non-dominated points, in log size
   if (front.length > 1) {
+    s += valueBand(front.map((d) => [X(d.px), Y(scoreOf(d, scope))]), B);
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
   }
   // purple, highlight figure only, as in the price chart: each Qwen-4 model's bracket and line across, labels placed where they clear everything
@@ -730,13 +869,14 @@ function sizeFig(scope, hidden, highlight = false) {
   pts.forEach((p) => {
     const d = p.d;
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.size} GB · score ${fmtScore(p.sc)}`)}">`;
-    if (front.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
-    if (qs.includes(d)) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="30" fill="none" stroke="${C.purple}" stroke-width="5"/>`;
-    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="26" fill="${d.tint}" fill-opacity=".15"/>`;
-    s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${d.tint}"/>`;
-    if (isWarn(d)) s += warnSvg(p.x, p.y - 34, 30);
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
-    s += iconSvg(d, p.iconX, p.ly - 20, 40);
+    s += logoPoint(d, p.x, p.y, front.includes(d), qs.includes(d));
+    if (isWarn(d)) s += warnSvg(p.x, p.y - 40, 30);
+    s += `</g>`;
+  });
+  pts.forEach((p) => {   // labels after every point, so no disc covers a label
+    const d = p.d;
+    s += `<g data-m="${esc(d.id)}">`;
     s += `<text x="${p.textX}" y="${p.ly + 10}" font-size="28" font-weight="800" text-anchor="${p.anchor}" fill="${C.ink}" stroke="#ffffff" stroke-width="7" paint-order="stroke">${esc(d.model)} <tspan font-weight="600" fill="${C.soft}">(${esc(d.effort)})</tspan> <tspan font-weight="700" fill="${C.soft}">${fmtScore(p.sc)}</tspan> <tspan font-weight="600" fill="${C.soft}">${d.size} GB</tspan></text>`;
     s += `</g>`;
   });
@@ -1251,7 +1391,7 @@ function tilesHTML(hidden) {
 const TABS_KEYS = TABS.map((t) => t[0]);
 const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
 const state = {
-  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined',
+  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined', reLook: 'classic',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
   openOnly: false,
   gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
@@ -1272,7 +1412,7 @@ function buildCurrent() {
     case 'general': return { html: generalHTML(state.gmetric, state.asort, hidden) };
     case 'progress': return { html: progressHTML(hidden) };
     case 'overview': return overviewFig(hidden);
-    case 'explorer': return state.mode === 'score' ? scoresFig(state.scope, hidden)
+    case 'explorer': return state.mode === 'score' ? (state.scope === 're' && state.reLook === 'board' ? reBoardFig(hidden) : scoresFig(state.scope, hidden))
       : state.mode === 'size' ? sizeFig(state.scope, hidden) : ppFig(state.scope, hidden);
     case 'profiles': return radarFig([...state.prof], hidden);
     case 'speed': return speedFig(state.metric, hidden);
@@ -1287,7 +1427,8 @@ function controlsHTML() {
     case 'explorer':
       return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
         `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>` +
-        (state.scope === 're' ? `<span class="re-view-wrap"><span class="seg-cap">RE score</span><div class="seg seg-re" role="group" aria-label="RE score view">${RE_VIEWS.map((v) => `<button type="button" data-review="${v}" class="${state.reView === v ? 'on' : ''}" aria-pressed="${state.reView === v}" title="${esc(RE_TIP[v])}">${RE_LABEL[v]}</button>`).join('')}</div></span>` : '');
+        (state.scope === 're' && !(state.mode === 'score' && state.reLook === 'board') ? `<span class="re-view-wrap"><span class="seg-cap">RE score</span><div class="seg seg-re" role="group" aria-label="RE score view">${RE_VIEWS.map((v) => `<button type="button" data-review="${v}" class="${state.reView === v ? 'on' : ''}" aria-pressed="${state.reView === v}" title="${esc(RE_TIP[v])}">${RE_LABEL[v]}</button>`).join('')}</div></span>` : '') +
+        (state.scope === 're' && state.mode === 'score' ? `<span class="re-view-wrap"><span class="seg-cap">Look</span><div class="seg" role="group" aria-label="RE look">${[['classic', 'Classic', 'One RE score at a time, as columns'], ['board', 'Board', 'RE combined split into its five parts, with every part ranked']].map(([k, l, t]) => `<button type="button" data-relook="${k}" class="${state.reLook === k ? 'on' : ''}" aria-pressed="${state.reLook === k}" title="${t}">${l}</button>`).join('')}</div></span>` : '');
     case 'profiles':
       return DATA.filter((d) => d.complete).map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
         '<button type="button" class="chip plain" data-act="top3">reset to top 3</button>';
@@ -1350,7 +1491,7 @@ function readHash() {
   if (tab === 'explorer') {
     if (SCOPES.some(([k]) => k === a)) state.scope = a;
     if (['score', 'p2p', 'size'].includes(b)) state.mode = b;
-    if (a === 're') state.reView = RE_VIEWS.includes(c) ? c : 'combined';
+    if (a === 're') { state.reLook = c === 'board' ? 'board' : 'classic'; state.reView = RE_VIEWS.includes(c) ? c : 'combined'; }
   }
   if (tab === 'speed' && (a === 'min' || a === 'tps')) state.metric = a;
 }
@@ -1358,7 +1499,8 @@ function writeHash() {
   let h = state.tab;
   if (state.tab === 'explorer') {
     h += `/${state.scope}/${state.mode}`;
-    if (state.scope === 're' && state.reView !== 'combined') h += `/${state.reView}`;
+    if (state.scope === 're' && state.mode === 'score' && state.reLook === 'board') h += '/board';
+    else if (state.scope === 're' && state.reView !== 'combined') h += `/${state.reView}`;
   }
   if (state.tab === 'speed') h += `/${state.metric}`;
   history.replaceState(null, '', `#${h}`);
@@ -1377,6 +1519,7 @@ $('#controls').addEventListener('click', (e) => {
   if (ds.scope) state.scope = ds.scope;
   else if (ds.mode) state.mode = ds.mode;
   else if (ds.review) state.reView = ds.review;
+  else if (ds.relook) state.reLook = ds.relook;
   else if (ds.pscope) state.pscope = ds.pscope;
   else if (ds.openOnly) { state.openOnly = ds.openOnly === '1'; try { localStorage.setItem('gfOpenOnly', ds.openOnly); } catch (err) { /* private mode */ } }
   else if (ds.metric) state.metric = ds.metric;
@@ -1479,6 +1622,7 @@ const EXPORTS = [
   { name: 'scores-re-combined', build: () => reSingleFig('combined') },
   { name: 'scores-re-blind-hard', build: () => reSingleFig('blind-hard') },
   { name: 'scores-re-assisted-hard', build: () => reSingleFig('assisted-hard') },
+  { name: 'scores-re-board', build: () => reBoardFig(NONE, true) },   // the opt-in board look, as an extra RE image
   { name: 'size-performance-overall', build: () => sizeFig('overall', NONE) },
   // the Qwen highlight: the overall and RE price charts and the overall size chart, with both Qwen-4 models left off the blue line and measured in purple
   { name: 'qwen-highlight-price-performance-overall', build: () => ppFig('overall', NONE, true) },
