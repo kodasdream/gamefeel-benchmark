@@ -1091,49 +1091,16 @@ function glanceInner(sort, hidden) {
     esc(`RE is the combined score. Overall needs all seven scores; a dash means no score yet. ${rows.length} entries with at least two scores.${legacyFootnote(rows) ? ' ' + legacyFootnote(rows) : ''}`));
 }
 
-/* ---------- blind vs assisted RE: dumbbell ---------- */
-function reHelpHTML(sort, hidden) {
-  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_assisted != null);
-  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? d.re_assisted - d.re_blind : k === 'model' ? d.model : d[k]));
-  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 20 : 300, R = W - (ph ? 80 : 150), rowH = ph ? 76 : 46, H = (ph ? 66 : 50) + rows.length * rowH, X = (v) => L + (v / 100) * (R - L);
-  let s = '';
-  [0, 20, 40, 60, 80, 100].forEach((t) => { s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`; });
-  rows.forEach((d, i) => {
-    const y = (ph ? 82 : 52) + i * rowH, gain = d.re_assisted - d.re_blind;   // on a phone the name sits on its own line above the bar
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · blind ${fmtScore(d.re_blind)} · assisted ${fmtScore(d.re_assisted)} · combined ${fmtScore(d.re_combined)}`)}">`;
-    s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
-    s += ph ? `<text x="${L}" y="${y - 20}" class="lbl">${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}</text>` : `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${esc(modelEffort(d))}${isNew(d) ? ' · NEW' : ''}</text>`;
-    s += `<line x1="${X(d.re_blind)}" x2="${X(d.re_assisted)}" y1="${y}" y2="${y}" stroke="${d.tint}" stroke-opacity=".35" stroke-width="8" stroke-linecap="round"/>`;
-    s += `<circle cx="${X(d.re_blind)}" cy="${y}" r="7.5" fill="#fff" stroke="${d.tint}" stroke-width="3"/><circle cx="${X(d.re_assisted)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
-    if (d.re_combined != null) s += ph ? `<path d="M${X(d.re_combined).toFixed(1)} ${y + 12} l6 9 h-12z" fill="var(--ink)"/>` : `<path d="M${X(d.re_combined).toFixed(1)} ${y - 12} l6 -9 h-12z" fill="var(--ink)"/>`;
-    s += `<text x="${X(Math.max(d.re_blind, d.re_assisted)) + 15}" y="${y + 5}" class="note">${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)}</text></g>`;
-  });
-  const opts = [['re_combined', 'Combined'], ['gain', 'Gain from examples'], ['re_blind', 'Blind'], ['re_assisted', 'Assisted'], ['model', 'Name']];
-  return card('Blind vs assisted RE: how much do examples help?',
-    `○ blind score (no examples) · ● assisted score (after studying 39 rated examples) · ${ph ? '▲' : '▼'} combined (all RE parts). A long bar means the model learns a lot from examples.`,
-    `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
-    (rows.length ? `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>` : '<p class="sub">No model with both scores is shown.</p>'),
-    `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own row.`);
-}
-
-/* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
-function releasedHTML(sort, hidden, mode = 'pts') {
-  // Vertical bars: solid = RE blind on the benchmark's unreleased games, dashed outline = RE blind on released games.
-  // The label on top says how much weaker the unreleased score is: points (unreleased − released) or percent of the released score.
-  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_released != null);
-  const pct = mode === 'pct';
-  const dropPts = (d) => d.re_blind - d.re_released;                                       // negative = weaker on unreleased
-  const dropPct = (d) => (d.re_released > 0 ? (dropPts(d) / d.re_released) * 100 : null);
-  const fmtPct = (v) => (v == null ? 'n/a' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v))}%`);
-  const fmtPts = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}`;
-  const label = (d) => (pct ? fmtPct(dropPct(d)) : fmtPts(dropPts(d)));
-  const sizeOf = (d) => -(pct ? dropPct(d) ?? 0 : dropPts(d));                             // size of the drop: larger = weaker on unreleased
-  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? sizeOf(d) : k === 'model' ? d.model : d[k]));
+/* ---------- paired columns: one score against a reference, per entry (blind vs assisted, released vs unreleased, expected vs actual) ----------
+   Solid column = the score the view is about; dashed outline = the reference it is measured against. When the solid column is taller,
+   a white dashed line inside it marks the reference. A chip on top gives the difference, green when it is in the model's favour,
+   red when not. Under the axis: the lab logo, the name (wrapped) and the reasoning effort. */
+function pairBars(rows, o) {
   const n = rows.length, ph = isPhone();
-  const W = Math.max(ph ? 860 : 1000, 60 + n * 74), L = 46, R = W - 10, T = 44, B = T + 300;
-  const top = Math.max(10, Math.ceil(Math.max(0, ...base.flatMap((d) => [d.re_blind, d.re_released])) / 10) * 10);
-  const Y = (v) => B - (v / top) * (B - T);
-  const pitch = (R - L) / Math.max(n, 1), bw = Math.min(pitch * 0.68, 86);
+  const W = Math.max(ph ? 860 : 1000, 60 + n * (n > 12 ? 54 : 76)), L = 46, R = W - 12, T = 50, B = T + 300;   // long lists get narrower columns, so the text keeps its size
+  const top = Math.max(10, Math.ceil(Math.max(0, ...rows.flatMap((d) => [o.main(d), o.ref(d)])) / 5) * 5);   // the scale ends just above the tallest column
+  const Y = (v) => B - (Math.max(0, v) / top) * (B - T);
+  const pitch = (R - L) / Math.max(n, 1), bw = Math.min(pitch * 0.66, 80);
   const wrap = (t, maxW) => {   // the model name in lines no wider than maxW, broken at spaces and hyphens
     const parts = t.replace(/-/g, '- ').split(' ').filter(Boolean), out = [];
     let cur = '';
@@ -1146,36 +1113,86 @@ function releasedHTML(sort, hidden, mode = 'pts') {
   };
   const names = rows.map((d) => wrap(shortName(d), pitch - 6));
   const nameLines = Math.max(1, ...names.map((l) => l.length));
-  const H = B + 22 + nameLines * 15 + 18;
+  const H = B + 36 + nameLines * 15 + 20;
+  const col = (x, y, w, h, r) => (h <= 0 ? '' : `M${x.toFixed(1)} ${(y + h).toFixed(1)}V${(y + Math.min(r, h)).toFixed(1)}Q${x.toFixed(1)} ${y.toFixed(1)} ${(x + r).toFixed(1)} ${y.toFixed(1)}H${(x + w - r).toFixed(1)}Q${(x + w).toFixed(1)} ${y.toFixed(1)} ${(x + w).toFixed(1)} ${(y + Math.min(r, h)).toFixed(1)}V${(y + h).toFixed(1)}Z`);
   let s = '';
-  for (let t = 0; t <= top; t += top > 50 ? 20 : 10) s += `<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${L - 8}" y="${Y(t) + 4}" class="ax" text-anchor="end">${t}</text>`;
+  for (let t = 0; t <= top; t += top > 50 ? 20 : top > 25 ? 10 : 5) s += `<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${L - 8}" y="${Y(t) + 4}" class="ax" text-anchor="end">${t}</text>`;
   rows.forEach((d, i) => {
-    const cx = L + pitch * (i + 0.5), x = cx - bw / 2, yu = Y(d.re_blind), yr = Y(d.re_released), y0 = Y(0);
-    const higher = d.re_blind >= d.re_released;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · unreleased ${fmtScore(d.re_blind)} · released ${fmtScore(d.re_released)} · ${fmtPts(dropPts(d))} points (${fmtPct(dropPct(d))})`)}">`;
-    s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${T - 50}" width="${pitch.toFixed(1)}" height="${H - T + 50}" fill="transparent"/>`;
-    s += `<rect x="${x.toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0 - yr).toFixed(1)}" fill="${d.tint}" fill-opacity=".07" stroke="${d.tint}" stroke-width="2" stroke-dasharray="6 5"/>`;
-    s += `<rect x="${x.toFixed(1)}" y="${yu.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, y0 - yu).toFixed(1)}" fill="${d.tint}" rx="3"/>`;
-    if (higher) s += `<line x1="${x.toFixed(1)}" x2="${(x + bw).toFixed(1)}" y1="${yr.toFixed(1)}" y2="${yr.toFixed(1)}" stroke="#fff" stroke-width="2.5" stroke-dasharray="6 5"/>`;
-    s += `<text x="${cx.toFixed(1)}" y="${(yu - 7).toFixed(1)}" text-anchor="middle" style="font-size:15px;font-weight:800;fill:${d.tint};stroke:#fff;stroke-width:4px;paint-order:stroke;stroke-linejoin:round">${fmtScore(d.re_blind)}</text>`;
-    const yTop = Math.min(yu - (higher ? 24 : 0), yr) - 8;
-    s += `<text x="${cx.toFixed(1)}" y="${yTop.toFixed(1)}" text-anchor="middle" class="note">${label(d)}</text>`;
-    if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(yTop - 16).toFixed(1)}" text-anchor="middle" style="font-size:10.5px;font-weight:800;letter-spacing:.5px;fill:${d.tint}">NEW!</text>`;
-    names[i].forEach((ln, k) => { s += `<text x="${cx.toFixed(1)}" y="${B + 20 + k * 15}" text-anchor="middle" style="font-size:12.5px;font-weight:800;fill:var(--ink)">${esc(ln)}</text>`; });
-    s += `<text x="${cx.toFixed(1)}" y="${B + 20 + names[i].length * 15 + 2}" text-anchor="middle" class="ax">${esc(d.effort || '')}</text></g>`;
+    const cx = L + pitch * (i + 0.5), x = cx - bw / 2, vm = o.main(d), vr = o.ref(d), ym = Y(vm), yr = Y(vr), y0 = Y(0);
+    const chip = o.chip(d), tone = chip.tone === 'good' ? ['var(--good-bg)', 'var(--good-ink)'] : chip.tone === 'bad' ? ['var(--bad-bg)', 'var(--bad-ink)'] : ['var(--track)', 'var(--ink-soft)'];
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(o.tip(d))}">`;
+    s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${T - 60}" width="${pitch.toFixed(1)}" height="${H - T + 60}" fill="transparent"/>`;
+    if (vr > vm) {   // the outline only where it rises above the column: a light fill and a dashed cap, open at the bottom
+      const r = Math.min(5, ym - yr), xr = x + bw;
+      s += `<path d="${col(x, yr, bw, ym - yr, 5)}" fill="${d.tint}" fill-opacity=".09"/>`;
+      s += `<path d="M${x.toFixed(1)} ${ym.toFixed(1)}V${(yr + r).toFixed(1)}Q${x.toFixed(1)} ${yr.toFixed(1)} ${(x + r).toFixed(1)} ${yr.toFixed(1)}H${(xr - r).toFixed(1)}Q${xr.toFixed(1)} ${yr.toFixed(1)} ${xr.toFixed(1)} ${(yr + r).toFixed(1)}V${ym.toFixed(1)}" fill="none" stroke="${d.tint}" stroke-width="1.8" stroke-dasharray="5 4"/>`;
+    }
+    s += `<path d="${col(x, ym, bw, y0 - ym, 5)}" fill="${d.tint}"/>`;
+    if (vm > vr && y0 - yr > 2) s += `<line x1="${(x + 3).toFixed(1)}" x2="${(x + bw - 3).toFixed(1)}" y1="${yr.toFixed(1)}" y2="${yr.toFixed(1)}" stroke="#fff" stroke-width="2.2" stroke-dasharray="5 4"/>`;
+    const mk = o.marker ? o.marker(d) : null;   // optional third value: a short ink bar across the column
+    if (mk != null) s += `<line x1="${(x - 5).toFixed(1)}" x2="${(x + bw + 5).toFixed(1)}" y1="${Y(mk).toFixed(1)}" y2="${Y(mk).toFixed(1)}" stroke="var(--ink)" stroke-opacity=".8" stroke-width="2.2" stroke-linecap="round"/>`;
+    const yv = Math.min(ym, mk != null ? Y(mk) : ym) - 7;
+    s += `<text x="${cx.toFixed(1)}" y="${yv.toFixed(1)}" text-anchor="middle" style="font-size:13.5px;font-weight:800;fill:var(--ink);stroke:var(--card);stroke-width:4px;paint-order:stroke;stroke-linejoin:round;font-variant-numeric:tabular-nums">${esc(o.value(d))}</text>`;
+    const cw = Math.max(34, textW(chip.text, 11.5, 800) + 14), cyTop = Math.min(yv - 14, yr - 6) - 20;
+    s += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${cyTop.toFixed(1)}" width="${cw.toFixed(1)}" height="19" rx="9.5" fill="${tone[0]}"/>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(cyTop + 13.5).toFixed(1)}" text-anchor="middle" style="font-size:11.5px;font-weight:800;fill:${tone[1]};font-variant-numeric:tabular-nums">${esc(chip.text)}</text>`;
+    if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(cyTop - 6).toFixed(1)}" text-anchor="middle" style="font-size:10.5px;font-weight:800;letter-spacing:.5px;fill:${d.tint}">NEW!</text>`;
+    if (isWarn(d)) s += `<g transform="translate(${(cx + cw / 2 + 2).toFixed(1)} ${(cyTop + 18).toFixed(1)}) scale(.5)">${warnSvg(12, 0, 34)}</g>`;
+    s += iconSvg(d, (cx - 9).toFixed(1), B + 9, 18);
+    names[i].forEach((ln, k) => { s += `<text x="${cx.toFixed(1)}" y="${B + 44 + k * 15}" text-anchor="middle" style="font-size:12.5px;font-weight:800;fill:var(--ink)">${esc(ln)}</text>`; });
+    s += `<text x="${cx.toFixed(1)}" y="${B + 44 + names[i].length * 15 + 2}" text-anchor="middle" class="ax">${esc(d.effort || '')}</text></g>`;
   });
   s += `<line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="var(--ink)" stroke-opacity=".25" stroke-width="1.5"/>`;
+  const svg = `<svg class="hsvg pairs" viewBox="0 0 ${W} ${H}"${ph ? ` style="min-width:${W * 0.86}px"` : ''}>${s}</svg>`;
+  return ph ? `<div class="hscroll">${svg}</div>` : svg;
+}
+// the key above a paired-column chart: what the solid column, the dashed outline and (optionally) the ink bar are
+const pairKey = (main, ref, marker) => `<div class="pairkey"><span><i class="k-solid"></i>${esc(main)}</span><span><i class="k-dash"></i>${esc(ref)}</span>${marker ? `<span><i class="k-mark"></i>${esc(marker)}</span>` : ''}<span><i class="k-chip"></i>difference</span></div>`;
+const signed = (v, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
+
+/* ---------- blind vs assisted RE ---------- */
+function reHelpHTML(sort, hidden) {
+  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_assisted != null);
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? d.re_assisted - d.re_blind : k === 'model' ? d.model : d[k]));
+  const opts = [['re_combined', 'Combined'], ['gain', 'Gain from examples'], ['re_blind', 'Blind'], ['re_assisted', 'Assisted'], ['model', 'Name']];
+  const chart = rows.length ? pairBars(rows, {
+    main: (d) => d.re_assisted, ref: (d) => d.re_blind, marker: (d) => d.re_combined, value: (d) => fmtScore(d.re_assisted),
+    chip: (d) => { const g = d.re_assisted - d.re_blind; return { text: signed(g), tone: g > 0 ? 'good' : g < 0 ? 'bad' : '' }; },
+    tip: (d) => `${modelEffort(d)} · blind ${fmtScore(d.re_blind)} · assisted ${fmtScore(d.re_assisted)} · combined ${fmtScore(d.re_combined)}`,
+  }) : '<p class="sub">No model with both scores is shown.</p>';
+  return card('Blind vs assisted RE: how much do examples help?',
+    'The same RE test, run twice: blind, and again after the model studies 39 rated examples. The chip is what the examples add, in points.',
+    `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
+    pairKey('Assisted (after 39 rated examples)', 'Blind (no examples)', 'RE combined') + chart,
+    `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own column.`);
+}
+
+/* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
+function releasedHTML(sort, hidden, mode = 'pts') {
+  // solid = RE blind on the benchmark's unreleased games, dashed outline = RE blind on released games;
+  // the chip says how much weaker the unreleased score is: points (unreleased − released) or percent of the released score
+  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_released != null);
+  const pct = mode === 'pct';
+  const dropPts = (d) => d.re_blind - d.re_released;                                       // negative = weaker on unreleased
+  const dropPct = (d) => (d.re_released > 0 ? (dropPts(d) / d.re_released) * 100 : null);
+  const fmtPct = (v) => (v == null ? 'n/a' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v))}%`);
+  const sizeOf = (d) => -(pct ? dropPct(d) ?? 0 : dropPts(d));                             // size of the drop: larger = weaker on unreleased
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? sizeOf(d) : k === 'model' ? d.model : d[k]));
   const opts = [['gap', 'Biggest drop'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['model', 'Name']];
   const avgDrop = base.length ? base.reduce((a, d) => a + dropPts(d), 0) / base.length : 0;
   const sumB = base.reduce((a, d) => a + d.re_blind, 0), sumR = base.reduce((a, d) => a + d.re_released, 0);
   const pooled = sumR > 0 ? ((sumB - sumR) / sumR) * 100 : null;
   const modeSeg = `<div class="seg" role="group" aria-label="Show the difference as">${[['pts', 'Points'], ['pct', 'Percent']].map(([k, l]) => `<button type="button" data-rmode="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  const svg = `<svg class="hsvg" viewBox="0 0 ${W} ${H}"${ph ? ` style="min-width:${W * 0.86}px"` : ''}>${s}</svg>`;
+  const chart = rows.length ? pairBars(rows, {
+    main: (d) => d.re_blind, ref: (d) => d.re_released, value: (d) => fmtScore(d.re_blind),
+    chip: (d) => { const v = pct ? dropPct(d) : dropPts(d); return { text: pct ? fmtPct(v) : signed(v), tone: v == null ? '' : v < 0 ? 'bad' : v > 0 ? 'good' : '' }; },
+    tip: (d) => `${modelEffort(d)} · unreleased ${fmtScore(d.re_blind)} · released ${fmtScore(d.re_released)} · ${signed(dropPts(d))} points (${fmtPct(dropPct(d))})`,
+  }) : '<p class="sub">No model with both scores is shown.</p>';
   return card('Released vs unreleased games: how much weaker on unseen games?',
-    `Solid bar: RE blind on the benchmark's own unreleased games. Dashed outline: RE blind on released commercial games (Balatro, Slay the Spire, World of Warcraft and others). The label on top is how much weaker the unreleased score is${pct ? ', as a percent of the released score' : ', in points'}.`,
+    `Both runs are blind. The chip is how much weaker the score on the benchmark's own unreleased games is than on released commercial games (Balatro, Slay the Spire, World of Warcraft and others)${pct ? ', as a percent of the released score' : ', in points'}.`,
     `<div class="sortbar"><span class="sortgrp"><span class="seg-cap">Show</span>${modeSeg}</span><span class="sortgrp"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></span></div>` +
-    (rows.length ? (ph ? `<div class="hscroll">${svg}</div>` : svg) : '<p class="sub">No model with both scores is shown.</p>'),
-    `Both scores are blind (no worked examples). A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. A bar taller than its outline means the model did better on the unreleased games. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own bar. On average the unreleased score is ${fmtPts(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
+    pairKey('Unreleased games', 'Released games') + chart,
+    `A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own column. On average the unreleased score is ${signed(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
 }
 
 /* ---------- is more effort worth it: each model's effort levels as one line ---------- */
@@ -1241,27 +1258,17 @@ function generalHTML(metric, sort, hidden) {
   const fit = linFit(base.map((d) => [d.aaIndex, val(d)]));
   base.forEach((d) => { d._exp = fit.a + fit.b * d.aaIndex; d._gap = val(d) - d._exp; d._val = val(d); });
   const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'model' ? d.model : k === 'gap' ? d._gap : k === 'aa' ? d.aaIndex : d._val));
-  const lo = Math.min(0, ...rows.map((d) => Math.min(d._val, d._exp))), hi = Math.max(...rows.map((d) => Math.max(d._val, d._exp)));
-  const ph = isPhone(), W = ph ? 660 : 1000, L = ph ? 330 : 300, R = W - (ph ? 80 : 150), rowH = 40, H = 50 + rows.length * rowH;
-  const X = (v) => L + ((v - lo) / (hi - lo || 1)) * (R - L);
-  const step = hi - lo > 40 ? 10 : 5;
-  let s = '';
-  for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) s += `<line x1="${X(t)}" x2="${X(t)}" y1="30" y2="${H}" class="grid"/><text x="${X(t)}" y="20" class="ax" text-anchor="middle">${t}</text>`;
-  rows.forEach((d, i) => {
-    const y = 50 + i * rowH, up = d._gap >= 0;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · Gamefeel ${fmtScore(d._val)} · expected from AA index ${d.aaIndex}: ${d._exp.toFixed(1)}`)}">`;
-    s += `<rect x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
-    s += `<text x="${L - 16}" y="${y + 5}" class="lbl" text-anchor="end">${esc(modelEffort(d))}</text>`;
-    s += `<line x1="${X(d._exp)}" x2="${X(d._val)}" y1="${y}" y2="${y}" stroke="${up ? 'var(--good)' : 'var(--bad)'}" stroke-opacity=".45" stroke-width="7" stroke-linecap="round"/>`;
-    s += `<circle cx="${X(d._exp)}" cy="${y}" r="7" fill="#fff" stroke="var(--ink-faint)" stroke-width="3"/><circle cx="${X(d._val)}" cy="${y}" r="7.5" fill="${d.tint}"/>`;
-    s += `<text x="${X(Math.max(d._val, d._exp)) + 14}" y="${y + 5}" class="note" style="fill:${up ? 'var(--good-ink)' : 'var(--bad-ink)'}">${up ? '▲ +' : '▼ −'}${Math.abs(d._gap).toFixed(1)}</text></g>`;
+  const chart = pairBars(rows, {
+    main: (d) => d._val, ref: (d) => d._exp, value: (d) => fmtScore(d._val),
+    chip: (d) => ({ text: signed(d._gap), tone: d._gap > 0 ? 'good' : d._gap < 0 ? 'bad' : '' }),
+    tip: (d) => `${modelEffort(d)} · Gamefeel ${fmtScore(d._val)} · expected from AA index ${d.aaIndex}: ${d._exp.toFixed(1)}`,
   });
   const opts = [['gap', 'Outlier gap'], ['val', 'Gamefeel'], ['aa', 'AA index'], ['model', 'Name']];
   const what = metric === 're' ? 'RE combined' : 'overall';
   return card('Gamefeel vs general capability',
-    `○ the Gamefeel ${what} score a model would get from its general capability alone (a straight-line fit on the Artificial Analysis Intelligence Index, r² = ${fit.r2.toFixed(2)}) · ● its actual score. ▲ green = better at game work than its general capability predicts, ▼ red = worse.`,
+    `The dashed outline is the Gamefeel ${what} score a model would get from its general capability alone: a straight-line fit on the Artificial Analysis Intelligence Index (r² = ${fit.r2.toFixed(2)}). The chip is how far its real score is from that: green = better at game work than its general capability predicts, red = worse.`,
     tog + `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-asort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
-    `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg>`,
+    pairKey(`Gamefeel ${what} score`, 'Expected from the AA index') + chart,
     `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.`);
 }
 

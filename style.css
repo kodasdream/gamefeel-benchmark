@@ -1,7 +1,7 @@
 :root {
   --bg: #eaeef6; --bg2: #f4f7fc; --ink: #1b2434; --ink-soft: #5a6478; --ink-faint: #98a1b5;
   --line: rgba(27,36,52,.08); --azure: #2b6cee; --gold: #c89600; --track: #e6ebf5; --zebra: #f5f7fb;
-  --good: #1f9d55; --good-ink: #157a41; --bad: #d64545; --bad-ink: #b42f2f; --card: #fff; --radius: 16px;
+  --good: #1f9d55; --good-ink: #157a41; --good-bg: #e2f4e9; --bad: #d64545; --bad-ink: #b42f2f; --bad-bg: #fbe4e4; --card: #fff; --radius: 16px;
   --shadow: 0 1px 2px rgba(27,36,52,.04), 0 4px 18px rgba(88,106,140,.10);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -303,3 +303,12 @@ ol.rank .rn, ol.rank .rn .nm { min-width: 0; overflow: hidden; }
 @media (max-width: 700px) { #stage .seg { flex-wrap: wrap; max-width: 100%; border-radius: 14px; } #stage .seg button { border-radius: 10px; } }
 .sortgrp { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%; }
 .hscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px; }
+
+/* paired-column views (blind vs assisted, released vs unreleased, expected vs actual): the key above the chart */
+.pairkey { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 2px 0 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.pairkey span { display: inline-flex; align-items: center; gap: 7px; }
+.pairkey i { display: inline-block; flex: none; }
+.pairkey .k-solid { width: 12px; height: 14px; border-radius: 3px 3px 0 0; background: var(--ink-soft); }
+.pairkey .k-dash { width: 12px; height: 14px; border-radius: 3px 3px 0 0; border: 1.6px dashed var(--ink-soft); border-bottom: 0; box-sizing: border-box; }
+.pairkey .k-mark { width: 16px; height: 3px; border-radius: 2px; background: var(--ink); }
+.pairkey .k-chip { width: 22px; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--good-bg) 50%, var(--bad-bg) 50%); }

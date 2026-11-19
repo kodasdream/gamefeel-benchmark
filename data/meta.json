@@ -1,12 +1,12 @@
 {
-  "updated": "2026-11-20 00:32",
+  "updated": "2026-11-20 01:36",
   "entries": 57,
   "standard": "v1.5.2",
   "gci": {
     "base": "v1.5",
     "standard": "v1.5.2",
-    "a": 1.0485,
-    "b": 0.341,
+    "a": 1.0503,
+    "b": 0.292,
     "anchors": 28
   },
   "re_combined": {
@@ -20,8 +20,8 @@
     "scale": {
       "re_blind": 1.0,
       "re_blind_hard": 0.211,
-      "re_assisted": 1.9015,
-      "re_assisted_hard": 0.5618,
+      "re_assisted": 1.8601,
+      "re_assisted_hard": 0.5402,
       "re_released": 2.4058
     },
     "pairs": {
