@@ -1,12 +1,36 @@
 {
-  "updated": "2026-11-18 01:09",
-  "entries": 54,
-  "standard": "v1.5.1",
+  "updated": "2026-11-20 00:32",
+  "entries": 57,
+  "standard": "v1.5.2",
   "gci": {
     "base": "v1.5",
-    "standard": "v1.5.1",
-    "a": 0.9986,
-    "b": 1.694,
+    "standard": "v1.5.2",
+    "a": 1.0485,
+    "b": 0.341,
     "anchors": 28
+  },
+  "re_combined": {
+    "weights": {
+      "re_blind": 5,
+      "re_blind_hard": 2,
+      "re_assisted": 3,
+      "re_assisted_hard": 1,
+      "re_released": 2
+    },
+    "scale": {
+      "re_blind": 1.0,
+      "re_blind_hard": 0.211,
+      "re_assisted": 1.9015,
+      "re_assisted_hard": 0.5618,
+      "re_released": 2.4058
+    },
+    "pairs": {
+      "re_blind": 10,
+      "re_blind_hard": 10,
+      "re_assisted": 9,
+      "re_assisted_hard": 9,
+      "re_released": 8
+    },
+    "legacy": 38
   }
 }

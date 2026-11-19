@@ -76,15 +76,16 @@ The results are published as a CSV file: [`data/gamefeelbench.csv`](data/gamefee
 | `gamefeel`                     | Gamefeel score, out of 100 |
 | `ideas`, `visuals`, `audio`    | Creativity scores, out of 100 |
 | `re_blind`, `re_assisted`, `re_released` | Gamefeel Reverse-Evaluation (RE) parts, out of 100: blind, assisted (39 rated examples first), and released-blind (released commercial games such as Balatro, Slay the Spire, World of Warcraft) |
-| `re_combined`                  | RE combined, from the parts a model has: blind only = 1.1 × blind; blind + assisted = 0.66 × blind + 0.34 × assisted; blind + released = 0.75 × blind + 0.25 × released; all three = 0.5 × blind + 0.3 × assisted + 0.2 × released |
-| `avg`                          | Overall (v1.5.1): weighted average of the six scores (weight 1 each) and `re_combined` (weight 1.5), divided by 7.5. Blank unless all seven are in. The overall ranking only uses models with all seven |
+| `re_combined`                  | RE combined (v1.5.2): (5 × `re_blind` + 2 × `re_blind_hard` + 3 × `re_assisted` + 1 × `re_assisted_hard` + 2 × `re_released`) ÷ 13. A part a model has not run is estimated from the parts it has, using each part's typical size relative to blind across the models that have both (the factors are in `data/meta.json`), so a partial record is not scored down for the parts it is missing |
+| `avg`                          | Overall (v1.5.1 and later): weighted average of the six scores (weight 1 each) and `re_combined` (weight 1.5), divided by 7.5. Blank unless all seven are in. The overall ranking only uses models with all seven |
 | `open_weights`                 | `yes` or `no`: whether the model's weights are open. Blank when not known |
 | `size_gb`                      | Model size in GB, for open-weight models where known. Blank when not known |
 | `size_basis`                   | The quantization the size is for, where stated |
 | `re_test`                      | A note when the RE score is from the semi-private subset of the RE test (748 tasks). Every other result is the full test, over 8,000 tasks. Blank for the full test |
 | `aa_index`                     | Artificial Analysis Intelligence Index (artificialanalysis.ai, read 2026-11-13) for the same model and reasoning effort. Blank when the model is not on their leaderboard |
-| `gci`                          | Gamefeel Capabilities Index: comparable across benchmark versions. On v1.5 it equals `avg`; later versions (v1.5.1 now) are mapped onto it through models tested in both. History in `data/gci-history.csv` |
+| `gci`                          | Gamefeel Capabilities Index: comparable across benchmark versions. On v1.5 it equals `avg`; later versions (v1.5.2 now) are mapped onto it through models tested in both. History in `data/gci-history.csv` |
 | `release_date`                 | The model's public release date (YYYY-MM-DD); blank for unreleased or stealth models, which get no GCI |
+| `re_blind_hard`, `re_assisted_hard` | RE hard: the blind and assisted runs scored only on the cards the designers rated by hand, at 1x (no 1.5x multiplier) |
 
 A blank score means the model has no score for that subcategory.
 
