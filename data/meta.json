@@ -5,8 +5,8 @@
   "gci": {
     "base": "v1.5",
     "standard": "v1.5.2",
-    "a": 1.0503,
-    "b": 0.292,
+    "a": 1.0491,
+    "b": 0.428,
     "anchors": 28
   },
   "re_combined": {
@@ -31,6 +31,12 @@
       "re_assisted_hard": 9,
       "re_released": 8
     },
-    "legacy": 38
+    "legacy": 45,
+    "v151_to_v152": {
+      "re_blind": 0.8358,
+      "re_blind_hard": 0.6552,
+      "re_assisted": 0.3298,
+      "re_assisted_hard": 0.1012
+    }
   }
 }

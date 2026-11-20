@@ -143,7 +143,7 @@ function reSegs(d) {
 const segTip = (segs) => (segs && !segs[0].legacy ? ` · adds: ${segs.map((g) => `${g.l} ${g.v.toFixed(1)}${g.est ? ' (est.)' : ''}`).join(', ')}` : '');
 let HATCH_N = 0;
 const hatchDefs = (id, color) => `<pattern id="${id}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="${color}" fill-opacity=".18"/><rect width="5" height="14" fill="${color}" fill-opacity=".9"/></pattern>`;
-const reParts = (d) => { if (d.reLegacy) return 'older v1.5.1 RE score, kept until re-run'; const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l); return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts'; };
+const reParts = (d) => { if (d.reLegacy) return 'estimated on v1.5.2 from older v1.5.1 RE run, until re-run'; const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l); return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts'; };
 // For Blind Hard, Assisted Hard and Combined Hard charts, models without a v1.5.2 run show their recalculated v1.5.1 1x human-only score, marked †.
 const combinedHardOf = (d) => {
   const bh = d.re_blind_hard ?? d.reBlindHardOld, ah = d.re_assisted_hard ?? d.reAssistedHardOld;
@@ -181,7 +181,7 @@ const withLegacy = (on, fn) => { const k = LEGACY_MARK; LEGACY_MARK = on === tru
 const legacyFootnote = (rows, key = LEGACY_MARK || 're_combined') => {
   if (!rows.some((d) => isPartLegacy(d, key))) return null;
   if (key === 're_blind_hard' || key === 're_assisted_hard' || key === 're_combined_hard') return '† Recalculated from the model\'s v1.5.1 run (human-rated cards only, 1x), until it is re-run on v1.5.2.';
-  return '† Older RE test: these models keep their v1.5.1 RE combined score until they are re-run on the current test.';
+  return '† Estimated on v1.5.2 from the model\'s older v1.5.1 RE run (calibrated per part, never extrapolated from released games alone), until re-run.';
 };
 const modelEffort = (d) => [d.model, d.effort].filter(Boolean).join(' · ');
 const namesOf = (rows) => [...new Set(rows.map((d) => d.model))].join(', ');
@@ -437,7 +437,7 @@ function reStackedFig() {
     'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Hard: scored only on the cards the designers rated by hand.',
     'Overall uses RE combined only, at 1.5x weight.',
     'Every model is shown once per chart, at its best reasoning effort.',
-    ...(hasCombLeg || hasHardLeg ? ['† Older RE test: keeps the model\'s v1.5.1 RE combined score (or recalculated v1.5.1 1x human-only Hard score) until it is re-run on v1.5.2.'] : []),
+    ...(hasCombLeg || hasHardLeg ? ['† Estimated from the model\'s older v1.5.1 run (calibrated per part for Combined; recalculated 1x human-only for Hard) until re-run on v1.5.2.'] : []),
   ];
   const GAP = 90, W = 2 * WC;
   const cells = sections.map(([key, label, desc]) => {
@@ -522,7 +522,7 @@ function reBoardFig(hidden = NONE, wide = false) {
   const items = rows.map((d) => { const segs = reSegs(d); return { d, v: d.re_combined, value: fmtScore(d.re_combined), segs, tip: `combined ${fmtScore(d.re_combined)} · ${reParts(d)}${segTip(segs)}` }; });
   let head = `<text x="64" y="30" font-size="40" font-weight="800" fill="${C.ink}">COMBINED</text>`;
   head += `<text x="64" y="70" font-size="23" font-weight="500" fill="${C.soft}">${esc(`What Overall uses, each column split into what each part adds. ${topNote(rows.length, all.length)}`)}</text>`;
-  const legend = [['hatch', 'Hatched: part not run, estimated from the others'], ['legacy', '† Grey: older v1.5.1 RE score']];
+  const legend = [['hatch', 'Hatched: part not run, estimated from the others'], ['legacy', '† Grey: estimated from v1.5.1 RE']];
   head += `<defs>${hatchDefs('hatchLegend', C.soft)}</defs>`;
   let lx = W - 64;
   for (let i = legend.length - 1; i >= 0; i--) {
