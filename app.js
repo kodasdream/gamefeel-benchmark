@@ -5,6 +5,10 @@
 let DATA = [];
 let ICONS = {};
 let META = {};
+let LABS_MAP = {};
+let VERSIONS = null;
+let LATEST_BUNDLE = null;
+const VERSION_CACHE = new Map();
 
 async function fetchText(url) {
   const res = await fetch(url);
@@ -40,18 +44,11 @@ function parseIcon(svgText) {
     .replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"');
   return { vb: svg.getAttribute('viewBox') || '0 0 24 24', inner: inner.trim() };
 }
-async function loadData() {
-  const [csv, labsCsv, meta] = await Promise.all([
-    fetchText('data/gamefeelbench.csv'), fetchText('data/labs.csv'), fetchText('data/meta.json'),
-  ]);
-  const labs = Object.fromEntries(parseCSV(labsCsv).map((l) => [l.lab_key, l]));
-  const slugs = [...new Set([...Object.values(labs).map((l) => l.icon), 'unknown'])];
-  const icons = Object.fromEntries(await Promise.all(
-    slugs.map(async (s) => [s, parseIcon(await fetchText(`lab-icons/${s}.svg`))]),
-  ));
-  const num = (v) => (v === '' ? null : Number(v));
-  const rows = parseCSV(csv).map((r) => {
+function parseRows(csv, labs) {
+  const num = (v) => (v === '' || v == null ? null : Number(v));
+  return parseCSV(csv).map((r) => {
     const lab = labs[r.lab_key] || labs.unknown;
+    const reComb = num(r.re_combined ?? r.re ?? '');
     return {
       id: [r.model, r.effort].filter(Boolean).join(' · '), model: r.model, effort: r.effort,
       lab: lab.lab, tint: lab.colour, icon: lab.icon,
@@ -60,13 +57,25 @@ async function loadData() {
       tps: num(r.tokens_per_second),
       openWeights: r.open_weights === 'yes', size: num(r.size_gb), sizeBasis: r.size_basis || '',
       reNote: r.re_test || '', aaIndex: num(r.aa_index || ''), gci: num(r.gci || ''), firstSeen: r.release_date || '',   // set only on a result from the semi-private subset of the RE test
-      ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
-      re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_released: num(r.re_released), re_combined: num(r.re_combined),
+      ...Object.fromEntries(SCORE_KEYS.map((k) => [k, k === 're' ? reComb : num(r[k])])),
+      re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_released: num(r.re_released), re_combined: reComb,
       re_blind_hard: num(r.re_blind_hard ?? ''), re_assisted_hard: num(r.re_assisted_hard ?? ''), reLegacy: r.re_legacy || '', reBlindOld: num(r.re_blind_legacy ?? ''), reAssistedOld: num(r.re_assisted_legacy ?? ''),
       reBlindHardOld: num(r.re_blind_hard_legacy ?? ''), reAssistedHardOld: num(r.re_assisted_hard_legacy ?? ''),
     };
   });
-  return { rows, icons, meta: JSON.parse(meta) };
+}
+async function loadData() {
+  const [csv, labsCsv, meta, versionsText] = await Promise.all([
+    fetchText('data/gamefeelbench.csv'), fetchText('data/labs.csv'), fetchText('data/meta.json'),
+    fetchText('data/versions.json').catch(() => null),
+  ]);
+  const labs = Object.fromEntries(parseCSV(labsCsv).map((l) => [l.lab_key, l]));
+  const slugs = [...new Set([...Object.values(labs).map((l) => l.icon), 'unknown'])];
+  const icons = Object.fromEntries(await Promise.all(
+    slugs.map(async (s) => [s, parseIcon(await fetchText(`lab-icons/${s}.svg`))]),
+  ));
+  const rows = parseRows(csv, labs);
+  return { rows, icons, labs, meta: JSON.parse(meta), versions: versionsText ? JSON.parse(versionsText) : null };
 }
 
 /* ---------- constants ---------- */
@@ -89,7 +98,7 @@ const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
 const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
 const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
 const NEW_MODELS = ['Gemini-4-Neon'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
-const isNew = (d) => NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`);   // a bare name tags every effort level; 'Name · Effort' tags one
+const isNew = (d) => !META.is_historical && (NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`));   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
 const warnSvg = (cx, base, h = 34) => { const w = h * 1.12, r = (v) => v.toFixed(1); return `<path d="M${r(cx)} ${r(base - h)}L${r(cx + w / 2)} ${r(base)}H${r(cx - w / 2)}Z" fill="#fff" stroke="${WARN_C}" stroke-width="3.5" stroke-linejoin="round"/><text x="${r(cx)}" y="${r(base - 6)}" font-size="${r(h * 0.62)}" font-weight="900" text-anchor="middle" fill="${WARN_C}">!</text>`; };
@@ -108,13 +117,33 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const standardTag = () => (META.standard ? ` · ${esc(META.standard).toUpperCase()}` : '');
 
-/* ---------- derived fields (run once the data has loaded) ---------- */
+/* ---------- version-aware scoring metadata & derived fields ---------- */
+const activeScoreKeys = () => (META.score_keys && META.score_keys.length ? META.score_keys : SCORE_KEYS);
+const activeReWeight = () => (META.re_weight != null ? META.re_weight : RE_WEIGHT);
+const activeReMode = () => META.re_mode || 'v152';
+const activeReViews = () => ({
+  none: [],
+  single: ['combined'],
+  split3: ['combined', 'blind', 'assisted'],
+  split4: ['combined', 'blind', 'assisted', 'released'],
+  v152: RE_VIEWS,
+}[activeReMode()] || RE_VIEWS);
+const subcategoryList = () => {
+  const ks = activeScoreKeys(), rw = activeReWeight(), rm = activeReMode();
+  return ks.map((k) => {
+    const l = SCOPE_LABEL[k] || k;
+    if (k !== 're') return l;
+    if (rm === 'single') return l;
+    return rw === 1.5 ? `${l} (combined, 1.5x weight)` : `${l} (combined)`;
+  }).join(', ');
+};
 function deriveFields() {
+  const ks = activeScoreKeys(), rw = activeReWeight();
+  const wt = (k) => (k === 're' ? rw : 1);
+  const wsum = ks.reduce((a, k) => a + wt(k), 0);
   DATA.forEach((d) => {
-    d.complete = SCORE_KEYS.every((k) => d[k] != null);
-    // v1.5.1 overall: weighted mean, RE combined at 1.5x and the six task scores at 1x; only for a model with all seven
-    const wt = (k) => (k === 're' ? RE_WEIGHT : 1);
-    d.avg = d.complete ? Math.round((SCORE_KEYS.reduce((a, k) => a + wt(k) * d[k], 0) / SCORE_KEYS.reduce((a, k) => a + wt(k), 0)) * 10) / 10 : null;
+    d.complete = ks.every((k) => d[k] != null);
+    d.avg = d.complete ? Math.round((ks.reduce((a, k) => a + wt(k) * d[k], 0) / wsum) * 10) / 10 : null;
     d.free = d.price === 0;
     d.px = d.price == null ? null : Math.max(d.price, PRICE_FLOOR);   // no price: not drawn on a price chart
     d.value = d.avg != null && d.price > 0 ? Math.round((d.avg / d.price) * 10) / 10 : null;
@@ -143,7 +172,19 @@ function reSegs(d) {
 const segTip = (segs) => (segs && !segs[0].legacy ? ` · adds: ${segs.map((g) => `${g.l} ${g.v.toFixed(1)}${g.est ? ' (est.)' : ''}`).join(', ')}` : '');
 let HATCH_N = 0;
 const hatchDefs = (id, color) => `<pattern id="${id}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="${color}" fill-opacity=".18"/><rect width="5" height="14" fill="${color}" fill-opacity=".9"/></pattern>`;
-const reParts = (d) => { if (d.reLegacy) return 'estimated on v1.5.2 from older v1.5.1 RE run, until re-run'; const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l); return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts'; };
+const reParts = (d) => {
+  const rm = activeReMode();
+  if (rm === 'none') return 'no RE in this version';
+  if (rm === 'single') return `single RE score (${META.standard || 'historical'})`;
+  if (rm === 'split3' || rm === 'split4') {
+    const ks = rm === 'split4' ? [['re_blind', 'blind'], ['re_assisted', 'assisted'], ['re_released', 'released']] : [['re_blind', 'blind'], ['re_assisted', 'assisted']];
+    const have = ks.filter(([k]) => d[k] != null).map(([, l]) => l);
+    return have.length ? `from ${have.join(' + ')}` : '';
+  }
+  if (d.reLegacy) return 'estimated on v1.5.2 from older v1.5.1 RE run, until re-run';
+  const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l);
+  return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts';
+};
 // For Blind Hard, Assisted Hard and Combined Hard charts, models without a v1.5.2 run show their recalculated v1.5.1 1x human-only score, marked †.
 const combinedHardOf = (d) => {
   const bh = d.re_blind_hard ?? d.reBlindHardOld, ah = d.re_assisted_hard ?? d.reAssistedHardOld;
@@ -200,7 +241,7 @@ const reFootnote = (rows) => {
 };
 const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
 const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
-const figTitle = (s) => (s === 're' ? `GAMEFEEL · RE (${RE_LABEL[RE_VIEW].toUpperCase()})` : scopeTitle(s));
+const figTitle = (s) => (s === 're' ? (activeReMode() === 'single' || activeReMode() === 'none' ? 'GAMEFEEL · RE' : `GAMEFEEL · RE (${RE_LABEL[RE_VIEW].toUpperCase()})`) : scopeTitle(s));
 const RE_TIP = {
   combined: 'Blind, assisted, released and the two hard scores combined — the score Overall uses (at 1.5x weight)',
   blind: 'No worked examples shown — the model rates the proposals cold',
@@ -242,15 +283,22 @@ const RE_LINES = {
 };
 /* Where a figure's content starts: the title block has room for two subtitle lines; each extra line pushes the content down. */
 const topFor = (lines) => TOP + 36 * Math.max(0, lines.length - 2);
-const reContextLine = () => (RE_VIEW === 'combined'
-  ? `Score = RE combined. ${RE_RULE} Overall uses this score at 1.5x weight.`
-  : RE_VIEW.endsWith('-hard')
-    ? `Score = RE ${RE_LABEL[RE_VIEW].toLowerCase()}. ${RE_HARD} Overall uses RE combined, not this view.`
-  : RE_VIEW === 'blind'
-    ? 'Score = RE blind (no worked examples shown). Overall uses RE combined, not this view.'
-    : RE_VIEW === 'released'
-      ? 'Score = RE released-blind (released commercial games, no worked examples). Overall uses RE combined, not this view.'
-      : 'Score = RE assisted (39 rated worked examples studied first). Overall uses RE combined, not this view.');
+const reContextLine = () => {
+  const rm = activeReMode();
+  if (rm === 'none') return 'Gamefeel · RE was introduced in v1.3.';
+  if (rm === 'single') return 'Score = Gamefeel RE (single score, equal weight in Overall).';
+  if (RE_VIEW === 'combined' && rm === 'split3') return 'Score = RE combined (0.66 × blind + 0.34 × assisted). Overall uses this score at 1x weight.';
+  if (RE_VIEW === 'combined' && rm === 'split4') return 'Score = RE combined (blind, assisted and released-games RE). Overall uses this score at 1.5x weight.';
+  return RE_VIEW === 'combined'
+    ? `Score = RE combined. ${RE_RULE} Overall uses this score at 1.5x weight.`
+    : RE_VIEW.endsWith('-hard')
+      ? `Score = RE ${RE_LABEL[RE_VIEW].toLowerCase()}. ${RE_HARD} Overall uses RE combined, not this view.`
+    : RE_VIEW === 'blind'
+      ? 'Score = RE blind (no worked examples shown). Overall uses RE combined, not this view.'
+      : RE_VIEW === 'released'
+        ? 'Score = RE released-blind (released commercial games, no worked examples). Overall uses RE combined, not this view.'
+        : 'Score = RE assisted (39 rated worked examples studied first). Overall uses RE combined, not this view.';
+};
 
 /* ---------- drawing helpers ---------- */
 function iconSvg(d, x, y, size) {
@@ -380,7 +428,7 @@ function overviewFigInner(hidden) {
     { top: y0, ...fitAxis(rows.length ? rows[0].avg : 1, ovMin), unit: 'score', empty: 'No model is shown. Tick one on the left.' });
   const foot = footNotes([...(partial.length ? ['Partial runs without scores in all sections are excluded from Overall (they appear in the subcategories they have scores in).'] : []), legacyFootnote(rows)].filter(Boolean), chart.H);
   const H = foot.H;
-  let body = frame(WC, H, 'OVERALL · SCORES', [`Weighted average of: ${SUBCATEGORY_LIST}${ovMin > 0 ? ` · Y scale starts at ${ovMin}.` : ''}`]);
+  let body = frame(WC, H, 'OVERALL · SCORES', [`${activeReWeight() === 1.5 ? 'Weighted average' : 'Average'} of: ${subcategoryList()}${ovMin > 0 ? ` · Y scale starts at ${ovMin}.` : ''}`]);
   tiles.forEach(([label, value, sub], i) => {
     const x = 64 + i * (tw + 24), y = TOP;
     body += `<rect x="${x.toFixed(1)}" y="${y}" width="${tw.toFixed(1)}" height="${TH}" rx="26" fill="${C.zebra}"/>`;
@@ -402,14 +450,22 @@ function scoresFigInner(scope, hidden) {
   rows = rows.slice(0, TOP_N);   // the top 35 only
   const partial = scope === 'overall' ? DATA.filter((d) => !d.complete && !hidden.has(d.id)) : [];
   const ovMin = scope === 'overall' && rows.length ? Math.min(15, Math.floor(scoreOf(rows[rows.length - 1], scope))) : 0;
+  const rm = activeReMode();
+  const reLinesForVer = () => {
+    if (rm === 'none') return ['Gamefeel · RE was introduced in v1.3 and is not part of this historical version.'];
+    if (rm === 'single') return ['Gamefeel RE: how well the model gives feedback on game proposals, especially on balance.'];
+    if (RE_VIEW === 'combined' && rm === 'split3') return ['Gamefeel RE combined: 0.66 × blind + 0.34 × assisted (v1.5 formula). Overall uses this score.'];
+    if (RE_VIEW === 'combined' && rm === 'split4') return ['Gamefeel RE combined: blind, assisted and released-games RE (v1.5.1 formula). Overall uses this score at 1.5x weight.'];
+    return RE_LINES[RE_VIEW];
+  };
   const lines = scope === 'overall'
-    ? [`Weighted average of: ${SUBCATEGORY_LIST}`, `${topNote(rows.length, total)}${ovMin > 0 ? ` Y scale starts at ${ovMin}.` : ''}`]
+    ? [`${activeReWeight() === 1.5 ? 'Weighted average' : 'Average'} of: ${subcategoryList()}`, `${topNote(rows.length, total)}${ovMin > 0 ? ` Y scale starts at ${ovMin}.` : ''}`]
     : scope === 're'
-      ? [...RE_LINES[RE_VIEW], `${topNote(rows.length, total)} Scale 0 to the best score; price per task under each column.`]
+      ? [...reLinesForVer(), `${topNote(rows.length, total)} Scale 0 to the best score; price per task under each column.`]
       : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, `Only models with a score in this subcategory. ${topNote(rows.length, total)}`];
   // best on the right: the columns run from the lowest score on the left to the best on the right
-  const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}${scope === 're' && RE_VIEW === 'combined' ? ` · ${reParts(d)}` : ''}` }; }),
-    { top: topFor(lines), ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1, ovMin), unit: 'score', empty: 'No model is shown for this view.' });
+  const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}${scope === 're' && RE_VIEW === 'combined' && reParts(d) ? ` · ${reParts(d)}` : ''}` }; }),
+    { top: topFor(lines), ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1, ovMin), unit: 'score', empty: scope === 're' && rm === 'none' ? 'Gamefeel · RE was introduced in v1.3.' : 'No model is shown for this view.' });
   const subset = rows.filter((d) => d.reNote);
   const foot = footNotes([
     ...(partial.length ? ['Partial runs without scores in all sections are excluded from Overall (they appear in the subcategories they have scores in).'] : []),
@@ -939,14 +995,16 @@ function sizeFig(scope, hidden, highlight = false) {
 /* ---------- figure: profiles (radar) ---------- */
 function radarFig(ids, hidden) {
   const H = 1000, cx = 520, cy = 590, R = 280;
-  const AX = [['create', 'coding · create'], ['bugfix', 'coding · debugging'], ['gamefeel', 'gamefeel'],
+  const ALL_AX = [['create', 'coding · create'], ['bugfix', 'coding · debugging'], ['gamefeel', 'gamefeel'],
     ['ideas', 'creativity · ideas'], ['visuals', 'creativity · visuals'], ['audio', 'creativity · audio'],
     ['re', 'gamefeel · RE']];
+  const ks = new Set(activeScoreKeys());
+  const AX = ALL_AX.filter(([k]) => ks.has(k));
   const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / AX.length;
   const pt = (i, r) => [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
   const sel = DATA.filter((d) => ids.includes(d.id) && !hidden.has(d.id));
   const lines = [
-    'Seven scores as one shape per model. Rings are 20 points apart, out to 100.',
+    `${AX.length === 6 ? 'Six' : 'Seven'} scores as one shape per model. Rings are 20 points apart, out to 100.`,
     'Pick models with the chips above. The list on the right shows each model’s strongest score.',
   ];
   let s = '';
@@ -1239,7 +1297,7 @@ function reHelpHTML(sort, hidden) {
     main: B, ref: A, value: (d) => fmtScore(B(d)), suffix: (d) => (out(d) ? '†' : ''),
     chip: (d) => { const g = A(d) - B(d); return { text: signed(g), tone: g > 0 ? 'good' : g < 0 ? 'bad' : '' }; },
     tip: (d) => `${modelEffort(d)} · blind ${fmtScore(B(d))}${isPartLegacy(d, 're_blind') ? ' (outdated v1.5.1)' : ''} · assisted ${fmtScore(A(d))}${isPartLegacy(d, 're_assisted') ? ' (outdated v1.5.1)' : ''} · RE combined ${fmtScore(d.re_combined)}`,
-  }) : '<p class="sub">No model with both scores is shown.</p>';
+  }) : `<p class="sub">${activeReMode() === 'none' || activeReMode() === 'single' ? 'Blind vs assisted RE was introduced in v1.5.' : 'No model with both scores is shown.'}</p>`;
   return card('Blind vs assisted RE: how much do examples help?',
     'The same RE test, run twice: blind, and again after the model studies 39 rated examples. The chip is what the examples add, in points.',
     `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
@@ -1269,7 +1327,7 @@ function releasedHTML(sort, hidden, mode = 'pts') {
     main: ub, ref: (d) => d.re_released, value: (d) => fmtScore(ub(d)), suffix: (d) => (old(d) ? '†' : ''),
     chip: (d) => { const v = pct ? dropPct(d) : dropPts(d); return { text: pct ? fmtPct(v) : signed(v), tone: v == null ? '' : v < 0 ? 'bad' : v > 0 ? 'good' : '' }; },
     tip: (d) => `${modelEffort(d)} · unreleased ${fmtScore(ub(d))}${old(d) ? ' (v1.5.1 run)' : ''} · released ${fmtScore(d.re_released)} · ${signed(dropPts(d))} points (${fmtPct(dropPct(d))})`,
-  }) : '<p class="sub">No model with both scores is shown.</p>';
+  }) : `<p class="sub">${['none', 'single', 'split3'].includes(activeReMode()) ? 'Released-games RE was introduced in v1.5.1.' : 'No model with both scores is shown.'}</p>`;
   return card('Released vs unreleased games: how much weaker on unseen games?',
     `Both runs are blind. The chip is how much weaker the score on the benchmark's own unreleased games is than on released commercial games (Balatro, Slay the Spire, World of Warcraft and others)${pct ? ', as a percent of the released score' : ', in points'}.`,
     `<div class="sortbar"><span class="sortgrp"><span class="seg-cap">Show</span>${modeSeg}</span><span class="sortgrp"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></span></div>` +
@@ -1417,10 +1475,31 @@ function progressHTML(hidden) {
   const recList = [...all.recs.map((d) => ['best', d]), ...open.recs.map((d) => ['open', d])].sort((a, b) => a[1].firstSeen.localeCompare(b[1].firstSeen));
   const table = `<table class="plist"><tr><th>Date</th><th>New record</th><th></th><th>GCI</th></tr>${recList.map(([k, d]) => `<tr data-m="${esc(d.id)}"><td>${d.firstSeen}</td><td><span class="nm">${iconHTML(d)}<b>${esc(d.model)}</b><small>${esc(d.effort)}</small></span></td><td><span class="ptag ${k}">${k === 'open' ? 'best open' : 'best overall'}</span></td><td><b>${d.gci.toFixed(1)}</b></td></tr>`).join('')}</table>`;
   const gci = META.gci || {};
+  const chain = Array.isArray(gci.chain) ? gci.chain : [];
+  const scaleTable = chain.length ? (
+    '<h3 class="gci-scale-title">Version history &amp; GCI scaling</h3>' +
+    `<p class="gci-scale-sub">Each version change is calibrated from overlapping models tested in both versions (ordinary least squares, chained from base ${esc(gci.base || 'v1.5')}). Click any version to inspect its historical scores.</p>` +
+    '<div class="tscroll"><table class="plist"><tr><th>Version</th><th>Date</th><th>Entries</th><th>Shift vs prev</th><th>GCI scale</th><th>What changed</th><th></th></tr>' +
+    chain.slice().reverse().map((v) => {
+      const tr = v.transition;
+      const fit = v.gci_fit || {};
+      const shiftCell = tr
+        ? `${signed(tr.delta_mean)} pts <small>(R² ${tr.r2.toFixed(3)}, ${tr.anchors} models)</small>`
+        : '<small>initial</small>';
+      const eqCell = fit.ref === 'base'
+        ? '1.00 × avg <small>(base)</small>'
+        : `${Number(fit.a).toFixed(3)} × avg ${fit.b >= 0 ? '+' : '−'} ${Math.abs(fit.b).toFixed(2)}`;
+      const isCur = v.id === META.standard;
+      const btn = isCur
+        ? '<span class="vbtn cur">Viewing</span>'
+        : `<button type="button" class="vbtn" data-switch-ver="${esc(v.id)}">View ${esc(v.id)}</button>`;
+      return `<tr><td><b>${esc(v.id)}</b>${v.id === (VERSIONS && VERSIONS.latest) ? ' <span class="ptag best">latest</span>' : ''}</td><td>${esc(v.date)}</td><td class="num">${v.entries}</td><td class="num">${shiftCell}</td><td class="num">${eqCell}</td><td class="wrap">${esc(v.step_note || '')}</td><td>${btn}</td></tr>`;
+    }).join('') + '</table></div>'
+  ) : '';
   return card('Progress over time · GCI',
     'GCI, the Gamefeel Capabilities Index: one number per model that stays comparable when the benchmark moves to a new version. Each dot is a model at its public release date; the lines step up each time a new best arrives.' + (state.openOnly ? '' : ' <span style="color:var(--azure);font-weight:800">Solid blue</span>: best of all models. <span style="color:var(--good-ink);font-weight:800">Dashed green</span>: best open-weight model.'),
-    `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg><div class="tscroll">${table}</div>`,
-    `GCI on ${esc(gci.base || 'v1.5')} = the overall score. On each later version the build fits the new overall scores to the previous version's GCI, using every model tested in both, so the scale carries over; each version's values are kept in data/gci-history.csv. Dates are each model's public release date. Only released models with all seven scores have a GCI; unreleased and stealth models are left out until they ship.`);
+    `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg><div class="tscroll">${table}</div>${scaleTable}`,
+    `GCI on ${esc(gci.base || 'v1.5')} = the overall score. Across every version change (v1.2 through ${esc((VERSIONS && VERSIONS.latest) || META.standard || 'v1.5.2')}), the build fits a straight line over all overlapping models tested in both versions, chaining backward and forward so scores stay on one comparable scale; all versions are kept in data/gci-history.csv. Dates are each model's public release date. Only released models with all category scores have a GCI; unreleased and stealth models are left out until they ship.`);
 }
 
 /* ---------- overview: a tile per view, each with a small live preview; a click opens the view ---------- */
@@ -1443,7 +1522,9 @@ function tilesHTML(hidden) {
   const ranked = (key) => bestPerModel(vis.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key]));
   const tiles = [];
   const add = (go, title, sub, body, big = false) => tiles.push({ go, title, sub, body, big });
-  add('explorer/overall/score', 'Overall ranking', 'Weighted average, RE at 1.5x', miniBars(ranked('avg'), (d) => d.avg, (v) => v.toFixed(1), 5), true);
+  const rw = activeReWeight(), pks = activeScoreKeys();
+  const ovSub = rw === 1.5 ? 'Weighted average, RE at 1.5x' : rw === 1 ? 'Equal average of 7 scores' : 'Equal average of 6 scores';
+  add('explorer/overall/score', 'Overall ranking', ovSub, miniBars(ranked('avg'), (d) => d.avg, (v) => v.toFixed(1), 5), true);
   SCOPES.slice(1).forEach(([k, l]) => add(`explorer/${k}/score`, l, k === 're' ? 'Feedback on game proposals' : 'Score out of 100', miniBars(ranked(k), (d) => d[k], fmtScore, 3)));
   const priced = vis.filter((d) => d.complete && d.px != null);
   add('explorer/overall/p2p', 'Price to performance', 'Overall score against price per task, blue = best value line', miniScatter(priced, (d) => d.px, (d) => d.avg));
@@ -1451,9 +1532,9 @@ function tilesHTML(hidden) {
   add('explorer/overall/size', 'Size to performance', 'Open-weight models: size against score', miniScatter(sized, (d) => d.size, (d) => d.avg));
   add('speed/tps', 'Speed', 'Output tokens per second', miniBars(ranked('tps'), (d) => d.tps, (v) => `${v}`, 3));
   const best = ranked('avg')[0];
-  add('profiles', 'Profiles', 'Seven scores as one shape per model', best ? `<svg class="msc" viewBox="0 0 240 92">${[best].map((d) => { const pts = SCORE_KEYS.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7, r = (d[k] / 100) * 42; return `${(120 + Math.cos(a) * r).toFixed(1)},${(46 + Math.sin(a) * r).toFixed(1)}`; }); return `<polygon points="${SCORE_KEYS.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7; return `${(120 + Math.cos(a) * 42).toFixed(1)},${(46 + Math.sin(a) * 42).toFixed(1)}`; }).join(' ')}" fill="none" stroke="${C.track}" stroke-width="1.5"/><polygon points="${pts.join(' ')}" fill="${d.tint}" fill-opacity=".2" stroke="${d.tint}" stroke-width="2"/>`; }).join('')}</svg><p class="tnote">${esc(modelEffort(best))}</p>` : '');
+  add('profiles', 'Profiles', `${pks.length === 6 ? 'Six' : 'Seven'} scores as one shape per model`, best ? `<svg class="msc" viewBox="0 0 240 92">${[best].map((d) => { const pts = pks.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / pks.length, r = ((d[k] ?? 0) / 100) * 42; return `${(120 + Math.cos(a) * r).toFixed(1)},${(46 + Math.sin(a) * r).toFixed(1)}`; }); return `<polygon points="${pks.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / pks.length; return `${(120 + Math.cos(a) * 42).toFixed(1)},${(46 + Math.sin(a) * 42).toFixed(1)}`; }).join(' ')}" fill="none" stroke="${C.track}" stroke-width="1.5"/><polygon points="${pts.join(' ')}" fill="${d.tint}" fill-opacity=".2" stroke="${d.tint}" stroke-width="2"/>`; }).join('')}</svg><p class="tnote">${esc(modelEffort(best))}</p>` : '');
   add('ledger', 'Ledger', 'Every column for every entry, sortable', `<p class="tbig">${vis.length}<small> entries</small></p><p class="tnote">price, speed, context, all scores</p>`);
-  const hm = ranked('avg').slice(0, 5), range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, [Math.min(...v), Math.max(...v)]]; }));
+  const hm = ranked('avg').slice(0, 5), range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, v.length ? [Math.min(...v), Math.max(...v)] : [0, 1]]; }));
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
   const tb = (d) => valOfPart(d, 're_blind'), ta = (d) => valOfPart(d, 're_assisted');   // as in the view: outdated v1.5.1 runs count too
   const ra = vis.filter((d) => tb(d) != null && ta(d) != null).sort((a, b) => (ta(b) - tb(b)) - (ta(a) - tb(a))).slice(0, 3);
@@ -1522,10 +1603,14 @@ const MODE_ICON = {
 };
 function subControlsHTML() {   // a second row inside the toolbar, only in the explorer's RE section
   if (state.tab !== 'explorer' || state.scope !== 're') return '';
-  const board = state.mode === 'score' && state.reLook === 'board';
-  return `<div class="tb-sub">${board ? '' : `<span class="sub-g"><span class="seg-cap">RE score</span><span class="subtabs" role="group" aria-label="RE score view">${RE_VIEWS.map((v) =>
+  const rm = activeReMode();
+  const views = activeReViews();
+  if (views.length <= 1 && rm !== 'v152') return '';
+  const hasBoard = rm === 'v152';
+  const board = hasBoard && state.mode === 'score' && state.reLook === 'board';
+  return `<div class="tb-sub">${board ? '' : `<span class="sub-g"><span class="seg-cap">RE score</span><span class="subtabs" role="group" aria-label="RE score view">${views.map((v) =>
     `<button type="button" data-review="${v}" class="${state.reView === v ? 'on' : ''}" aria-pressed="${state.reView === v}" title="${esc(RE_TIP[v])}">${RE_LABEL[v]}</button>`).join('')}</span></span>`}` +
-    (state.mode === 'score' ? `<span class="sub-g look"><span class="seg-cap">Look</span><span class="subtabs" role="group" aria-label="RE look">${[['classic', 'Classic', 'One RE score at a time, as columns'], ['board', 'Board', 'RE combined split into its five parts, with every part ranked']].map(([k, l, t]) =>
+    (hasBoard && state.mode === 'score' ? `<span class="sub-g look"><span class="seg-cap">Look</span><span class="subtabs" role="group" aria-label="RE look">${[['classic', 'Classic', 'One RE score at a time, as columns'], ['board', 'Board', 'RE combined split into its five parts, with every part ranked']].map(([k, l, t]) =>
       `<button type="button" data-relook="${k}" class="${state.reLook === k ? 'on' : ''}" aria-pressed="${state.reLook === k}" title="${t}">${l}</button>`).join('')}</span></span>` : '') + '</div>';
 }
 function controlsHTML() {
@@ -1607,15 +1692,79 @@ function readHash() {
   }
   if (tab === 'speed' && (a === 'min' || a === 'tps')) state.metric = a;
 }
+function urlWithHash(h) {
+  const qs = META.is_historical && META.standard ? `?v=${encodeURIComponent(META.standard)}` : '';
+  return `${location.pathname}${qs}#${h}`;
+}
 function writeHash() {
   let h = state.tab;
   if (state.tab === 'explorer') {
     h += `/${state.scope}/${state.mode}`;
-    if (state.scope === 're' && state.mode === 'score' && state.reLook === 'board') h += '/board';
-    else if (state.scope === 're' && state.reView !== 'combined') h += `/${state.reView}`;
+    if (state.scope === 're' && state.mode === 'score' && state.reLook === 'board' && activeReMode() === 'v152') h += '/board';
+    else if (state.scope === 're' && state.reView !== 'combined' && activeReViews().includes(state.reView)) h += `/${state.reView}`;
   }
   if (state.tab === 'speed') h += `/${state.metric}`;
-  history.replaceState(null, '', `#${h}`);
+  history.replaceState(null, '', urlWithHash(h));
+}
+function updateMetaAndBanner() {
+  const csvHref = (META.version_info && META.version_info.csv) || 'data/gamefeelbench.csv';
+  $('#meta').innerHTML = `${DATA.length} entries${META.standard ? ` · standard ${esc(META.standard)}` : ''} · updated ${esc(META.updated)}<br>` +
+    `<a href="${esc(csvHref)}" download>Download the data (CSV)</a>`;
+  const sel = $('#verSelect');
+  if (sel && META.standard) sel.value = META.standard;
+  document.body.classList.toggle('is-history', Boolean(META.is_historical));
+  const ban = $('#verBanner');
+  if (!ban) return;
+  if (!META.is_historical || !META.version_info) {
+    ban.hidden = true;
+    ban.innerHTML = '';
+    return;
+  }
+  const v = META.version_info;
+  const fit = v.gci_fit || {};
+  const scaleTxt = fit.ref === 'base'
+    ? 'GCI base (1.00 × avg)'
+    : `GCI scale: ${Number(fit.a).toFixed(3)} × avg ${fit.b >= 0 ? '+' : '−'} ${Math.abs(fit.b).toFixed(2)} (${fit.anchors} anchors, R² ${Number(fit.r2).toFixed(3)})`;
+  const latest = (VERSIONS && VERSIONS.latest) || 'v1.5.2';
+  ban.hidden = false;
+  ban.innerHTML = `<span><b>Historical snapshot · ${esc(v.id)}</b> <span class="vb-meta">(${esc(v.date)} · ${v.entries} entries) — ${esc(v.summary)} ${esc(scaleTxt)}.</span></span>` +
+    `<button type="button" data-switch-ver="${esc(latest)}">Back to ${esc(latest)} (latest)</button>`;
+}
+async function switchVersion(verId) {
+  if (!VERSIONS || !VERSIONS.versions) return;
+  const v = VERSIONS.versions.find((x) => x.id === verId);
+  if (!v) return;
+  let bundle = VERSION_CACHE.get(verId);
+  if (!bundle) {
+    const csvText = await fetchText(v.csv);
+    const rows = parseRows(csvText, LABS_MAP);
+    const baseGci = (LATEST_BUNDLE && LATEST_BUNDLE.meta && LATEST_BUNDLE.meta.gci) || {};
+    const meta = {
+      updated: v.date,
+      entries: rows.length,
+      standard: v.id,
+      score_keys: v.score_keys,
+      re_weight: v.re_weight,
+      re_mode: v.re_mode,
+      is_historical: !v.is_latest,
+      version_info: v,
+      gci: { ...baseGci, standard: v.id, a: v.gci_fit.a, b: v.gci_fit.b, r2: v.gci_fit.r2, anchors: v.gci_fit.anchors },
+      re_combined: v.is_latest && LATEST_BUNDLE ? LATEST_BUNDLE.meta.re_combined : null,
+    };
+    bundle = { rows, meta };
+    VERSION_CACHE.set(verId, bundle);
+  }
+  DATA = bundle.rows;
+  META = bundle.meta;
+  deriveFields();
+  const validIds = new Set(DATA.map((d) => d.id));
+  state.hidden = new Set([...state.hidden].filter((id) => validIds.has(id)));
+  const keptProf = [...state.prof].filter((id) => validIds.has(id));
+  state.prof = new Set(keptProf.length ? keptProf : TOP3());
+  if (!activeReViews().includes(state.reView)) state.reView = 'combined';
+  if (activeReMode() !== 'v152') state.reLook = 'classic';
+  updateMetaAndBanner();
+  render();
 }
 const toggle = (set, v) => (set.has(v) ? set.delete(v) : set.add(v));
 
@@ -1641,9 +1790,11 @@ $('#controls').addEventListener('click', (e) => {
   render();
 });
 $('#stage').addEventListener('click', (e) => {
+  const sv = e.target.closest('[data-switch-ver]');
+  if (sv) { switchVersion(sv.dataset.switchVer); return; }
   const tile = e.target.closest('[data-open]');
   if (tile) {
-    const go = () => { history.replaceState(null, '', '#' + tile.dataset.open); readHash(); render(); const f = $('#stage .fig'); if (f) f.style.viewTransitionName = 'hero'; };
+    const go = () => { history.replaceState(null, '', urlWithHash(tile.dataset.open)); readHash(); render(); const f = $('#stage .fig'); if (f) f.style.viewTransitionName = 'hero'; };
     if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) { go(); return; }
     tile.style.viewTransitionName = 'hero';
     document.startViewTransition(go).finished.finally(() => { const f = $('#stage .fig'); if (f) f.style.viewTransitionName = ''; });
@@ -1755,10 +1906,13 @@ const EXPORTS = [
 window.renderExport = (name) => {
   const e = EXPORTS.find((x) => x.name === name);
   if (!e) throw new Error('unknown export ' + name);
+  const keepData = DATA, keepMeta = META;
+  if (LATEST_BUNDLE && META.is_historical) { DATA = LATEST_BUNDLE.rows; META = LATEST_BUNDLE.meta; deriveFields(); }
   RE_VIEW = 'combined';   // exports always use the combined RE score, whatever the explorer is showing
   const keepOpen = state.openOnly; state.openOnly = false;   // exports always show every model
   const f = e.build();
   state.openOnly = keepOpen;
+  if (keepMeta.is_historical) { DATA = keepData; META = keepMeta; }
   if (f.html) {   // an HTML view: laid out at 1536 CSS px and zoomed 2x, so it is captured 6144 px wide like the rest
     $('#exportStage').style.width = '';
     $('#exportStage').innerHTML = `<div class="fig hexport">${f.html}</div>`;
@@ -1777,7 +1931,7 @@ window.renderExport = (name) => {
    export script can wait for it. */
 async function init() {
   try {
-    ({ rows: DATA, icons: ICONS, meta: META } = await loadData());
+    ({ rows: DATA, icons: ICONS, labs: LABS_MAP, meta: META, versions: VERSIONS } = await loadData());
   } catch (err) {
     console.error(err);
     $('#stage').innerHTML = `<div class="fig"><p class="notice">The data could not be loaded (${esc(err.message)}). ` +
@@ -1785,12 +1939,34 @@ async function init() {
     return;
   }
   deriveFields();
+  if (VERSIONS && VERSIONS.versions) {
+    const latestInfo = VERSIONS.versions.find((x) => x.is_latest);
+    META.is_historical = false;
+    if (latestInfo) META.version_info = latestInfo;
+    LATEST_BUNDLE = { rows: DATA, meta: META };
+    VERSION_CACHE.set(META.standard, LATEST_BUNDLE);
+    const sel = $('#verSelect');
+    if (sel) {
+      sel.innerHTML = VERSIONS.versions.map((v) =>
+        `<option value="${esc(v.id)}">${esc(v.id)}${v.is_latest ? ' (latest)' : ` · ${esc(v.date)}`}</option>`).join('');
+      sel.value = META.standard;
+      sel.addEventListener('change', () => switchVersion(sel.value));
+    }
+    const ban = $('#verBanner');
+    if (ban) ban.addEventListener('click', (e) => { const b = e.target.closest('[data-switch-ver]'); if (b) switchVersion(b.dataset.switchVer); });
+  } else {
+    const vw = $('.ver-wrap'); if (vw) vw.style.display = 'none';
+  }
   state.prof = new Set(TOP3());
-  $('#meta').innerHTML = `${DATA.length} entries${META.standard ? ` · standard ${esc(META.standard)}` : ''} · updated ${esc(META.updated)}<br>` +
-    '<a href="data/gamefeelbench.csv" download>Download the data (CSV)</a>';
+  updateMetaAndBanner();
   window.EXPORTS = EXPORTS.map((e) => e.name);
   window.LABEL_STATS = LABEL_STATS;
   readHash();
+  const reqVer = new URLSearchParams(location.search).get('v');
+  if (reqVer && VERSIONS && VERSIONS.versions && VERSIONS.versions.some((x) => x.id === reqVer) && reqVer !== META.standard) {
+    await switchVersion(reqVer);
+    return;
+  }
   render();
 }
 init();

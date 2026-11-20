@@ -1,4 +1,69 @@
 standard,model,effort,gci,release_date
+v1.2,Qwen-3.7-Plus,Medium,24.3,2026-06-01
+v1.2,Minimax-M3.1-Flash,Max,22.6,2026-10-19
+v1.2,Muse Spark 1.3-Contributor,Medium,23.9,2026-09-02
+v1.2,gpt-6-auto (astra+luna),High,26.7,2026-09-22
+v1.2,Gemini 3.8-Flash,Max,33.8,2026-09-02
+v1.2,Qwen-3.8-Max,XHigh,36.5,2026-08-03
+v1.2,Deepseek V4.1-Flash,Max,39.3,2026-09-10
+v1.2,Mimo-V2.6-Pro,Max,39.5,2026-09-21
+v1.2,Opus-5.5,XHigh,43.7,2026-09-22
+v1.2,Sonnet-5.5,XHigh,40.5,2026-09-28
+v1.2,Sonnet-5.5,Medium,37.3,2026-09-28
+v1.2,gpt-6-luna,Max,18.6,2026-09-22
+v1.2,Opus-5.5,Medium,39.9,2026-09-22
+v1.2,GLM-5.3-Flash,Max,31.2,2026-08-26
+v1.2,Qwen-3.8-Flash-Next,XHigh,38.3,2026-08-26
+v1.2,Haiku-5.5,XHigh,35.3,2026-10-07
+v1.2,Deepseek V4.1-Flash-1017,Max,41.5,2026-10-17
+v1.2,Gemini-4-Argon,High,39.5,2026-09-30
+v1.3,Qwen-3.7-Plus,Medium,25,2026-06-01
+v1.3,Minimax-M3.1-Flash,Max,22.7,2026-10-19
+v1.3,Muse Spark 1.3-Contributor,Medium,23.9,2026-09-02
+v1.3,gpt-6-auto (astra+luna),High,26.5,2026-09-22
+v1.3,Gemini 3.8-Flash,Max,33.1,2026-09-02
+v1.3,Qwen-3.8-Max,XHigh,37,2026-08-03
+v1.3,Deepseek V4.1-Flash,Max,38.7,2026-09-10
+v1.3,Mimo-V2.6-Pro,Max,38.8,2026-09-21
+v1.3,Opus-5.5,XHigh,44.8,2026-09-22
+v1.3,Sonnet-5.5,XHigh,40.9,2026-09-28
+v1.3,Sonnet-5.5,Medium,37.3,2026-09-28
+v1.3,gpt-6-luna,Max,18.8,2026-09-22
+v1.3,Opus-5.5,Medium,40.5,2026-09-22
+v1.3,GLM-5.3-Flash,Max,30.5,2026-08-26
+v1.3,Qwen-3.8-Flash-Next,XHigh,38.8,2026-08-26
+v1.3,Haiku-5.5,XHigh,35.1,2026-10-07
+v1.3,Deepseek V4.1-Flash-1017,Max,40.9,2026-10-17
+v1.3,Gemini-4-Argon,High,39.9,2026-09-30
+v1.3,Ling-3.2-Flash,Max,31,2026-11-05
+v1.3,Nemotoron-3.5-Super-VL,Max,19,2026-10-15
+v1.3,Kimi K3.1-Pro,Max,29.7,2026-10-23
+v1.3,Sonnet-5.5,Max,42.9,2026-09-28
+v1.4,Qwen-3.7-Plus,Medium,24.9,2026-06-01
+v1.4,Minimax-M3.1-Flash,Max,22.6,2026-10-19
+v1.4,Muse Spark 1.3-Contributor,Medium,23.9,2026-09-02
+v1.4,gpt-6-auto (astra+luna),High,26.4,2026-09-22
+v1.4,Gemini 3.8-Flash,Max,33.3,2026-09-02
+v1.4,Qwen-3.8-Max,XHigh,37.1,2026-08-03
+v1.4,Deepseek V4.1-Flash,Max,38.8,2026-09-10
+v1.4,Mimo-V2.6-Pro,Max,39,2026-09-21
+v1.4,Opus-5.5,XHigh,45,2026-09-22
+v1.4,Sonnet-5.5,XHigh,41.1,2026-09-28
+v1.4,Sonnet-5.5,Medium,37.6,2026-09-28
+v1.4,gpt-6-luna,Max,18.7,2026-09-22
+v1.4,Opus-5.5,Medium,40.7,2026-09-22
+v1.4,GLM-5.3-Flash,Max,30.5,2026-08-26
+v1.4,Qwen-3.8-Flash-Next,XHigh,38.9,2026-08-26
+v1.4,Haiku-5.5,XHigh,35.2,2026-10-07
+v1.4,Deepseek V4.1-Flash-1017,Max,41.1,2026-10-17
+v1.4,Gemini-4-Argon,High,40.1,2026-09-30
+v1.4,Ling-3.2-Flash,Max,31.1,2026-11-05
+v1.4,Nemotron-3.5-Super-VL,Max,18.9,2026-10-15
+v1.4,Kimi K3.1-Pro,Max,29.7,2026-10-23
+v1.4,Sonnet-5.5,Max,43.1,2026-09-28
+v1.4,Gemini-4-Carbon,High,54.2,2026-10-28
+v1.4,Fable-5.2,Max,50.9,2026-11-09
+v1.4,Fable-5.2,Medium,50.8,2026-11-09
 v1.5,Qwen-3.7-Plus,Medium,24.1,2026-06-01
 v1.5,Minimax-M3.1-Flash,Max,21.9,2026-10-19
 v1.5,Muse Spark 1.3-Contributor,Medium,23.3,2026-09-02
@@ -31,18 +96,18 @@ v1.5.1,Qwen-3.7-Plus,Medium,24.6,2026-06-01
 v1.5.1,Minimax-M3.1-Flash,Max,22.2,2026-10-19
 v1.5.1,Muse Spark 1.3-Contributor,Medium,23.5,2026-09-02
 v1.5.1,gpt-6-auto (astra+luna),High,26.3,2026-09-22
-v1.5.1,Gemini 3.8-Flash,Max,33.3,2026-09-02
-v1.5.1,Qwen-3.8-Max,XHigh,37.1,2026-08-03
+v1.5.1,Gemini 3.8-Flash,Max,33.4,2026-09-02
+v1.5.1,Qwen-3.8-Max,XHigh,37.2,2026-08-03
 v1.5.1,Deepseek V4.1-Flash,Max,38.8,2026-09-10
 v1.5.1,Mimo-V2.6-Pro,Max,39.1,2026-09-21
 v1.5.1,Opus-5.5,XHigh,46.1,2026-09-22
 v1.5.1,Sonnet-5.5,XHigh,41.2,2026-09-28
-v1.5.1,Sonnet-5.5,Medium,37.6,2026-09-28
+v1.5.1,Sonnet-5.5,Medium,37.7,2026-09-28
 v1.5.1,gpt-6-luna,XHigh,18.1,2026-09-22
 v1.5.1,Opus-5.5,Medium,40.7,2026-09-22
 v1.5.1,GLM-5.3-Flash,Max,30.6,2026-08-26
 v1.5.1,Qwen-3.8-Flash-Next,XHigh,38.9,2026-08-26
-v1.5.1,Haiku-5.5,Max,34.9,2026-10-07
+v1.5.1,Haiku-5.5,Max,35,2026-10-07
 v1.5.1,Deepseek V4.1-Flash-1017,Max,42.1,2026-10-17
 v1.5.1,Gemini-4-Argon,High,40.1,2026-09-30
 v1.5.1,Ling-3.2-Flash,Max,31,2026-11-05
@@ -58,28 +123,28 @@ v1.5.1,Opus-5.5,Max,51.4,2026-09-22
 v1.5.2,Qwen-3.7-Plus,Medium,24.2,2026-06-01
 v1.5.2,Minimax-M3.1-Flash,Max,21.9,2026-10-19
 v1.5.2,Muse Spark 1.3-Contributor,Medium,23.3,2026-09-02
-v1.5.2,gpt-6-auto (astra+luna),High,26.2,2026-09-22
+v1.5.2,gpt-6-auto (astra+luna),High,26.1,2026-09-22
 v1.5.2,Gemini 3.8-Flash,Max,33.7,2026-09-02
 v1.5.2,Qwen-3.8-Max,XHigh,37.6,2026-08-03
 v1.5.2,Deepseek V4.1-Flash,Max,39.5,2026-09-10
-v1.5.2,Mimo-V2.6-Pro,Max,39.9,2026-09-21
-v1.5.2,Opus-5.5,XHigh,47.6,2026-09-22
-v1.5.2,Sonnet-5.5,XHigh,41.8,2026-09-28
-v1.5.2,Sonnet-5.5,Medium,38.1,2026-09-28
-v1.5.2,gpt-6-luna,XHigh,17.6,2026-09-22
+v1.5.2,Mimo-V2.6-Pro,Max,40,2026-09-21
+v1.5.2,Opus-5.5,XHigh,47.7,2026-09-22
+v1.5.2,Sonnet-5.5,XHigh,41.9,2026-09-28
+v1.5.2,Sonnet-5.5,Medium,38.2,2026-09-28
+v1.5.2,gpt-6-luna,XHigh,17.5,2026-09-22
 v1.5.2,Opus-5.5,Medium,41.4,2026-09-22
 v1.5.2,GLM-5.3-Flash,Max,30.8,2026-08-26
-v1.5.2,Qwen-3.8-Flash-Next,XHigh,39,2026-08-26
-v1.5.2,Haiku-5.5,Max,35.3,2026-10-07
-v1.5.2,Deepseek V4.1-Flash-1017,Max,42.6,2026-10-17
-v1.5.2,Gemini-4-Argon,High,44.8,2026-09-30
+v1.5.2,Qwen-3.8-Flash-Next,XHigh,39.1,2026-08-26
+v1.5.2,Haiku-5.5,Max,35.4,2026-10-07
+v1.5.2,Deepseek V4.1-Flash-1017,Max,42.7,2026-10-17
+v1.5.2,Gemini-4-Argon,High,44.9,2026-09-30
 v1.5.2,Ling-3.2-Flash,Max,31.1,2026-11-05
-v1.5.2,Nemotron-3.5-Super-VL,Max,17,2026-10-15
+v1.5.2,Nemotron-3.5-Super-VL,Max,16.9,2026-10-15
 v1.5.2,Kimi K3.1-Pro,Max,30.6,2026-10-23
-v1.5.2,Sonnet-5.5,Max,43.2,2026-09-28
-v1.5.2,Gemini-4-Carbon,High,50,2026-10-28
-v1.5.2,Fable-5.2,Max,50.2,2026-11-09
-v1.5.2,Fable-5.2,Medium,49.6,2026-11-09
-v1.5.2,Fable-5.2,High,49.6,2026-11-09
-v1.5.2,Ernie-5.5 Flash Preview,Max,43.2,2026-11-11
-v1.5.2,Opus-5.5,Max,46.8,2026-09-22
+v1.5.2,Sonnet-5.5,Max,43.3,2026-09-28
+v1.5.2,Gemini-4-Carbon,High,50.2,2026-10-28
+v1.5.2,Fable-5.2,Max,50.4,2026-11-09
+v1.5.2,Fable-5.2,Medium,49.7,2026-11-09
+v1.5.2,Fable-5.2,High,49.7,2026-11-09
+v1.5.2,Ernie-5.5 Flash Preview,Max,43.3,2026-11-11
+v1.5.2,Opus-5.5,Max,46.9,2026-09-22

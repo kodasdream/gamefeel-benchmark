@@ -14,6 +14,10 @@
     <div class="brand">The Gamefeel Benchmark<small>AI models on real dev tasks</small></div>
     <button id="sideToggle" type="button" aria-pressed="true" title="Show or hide the model list"><span class="glyph">◧</span>Models</button>
     <nav class="tabs" id="tabs"></nav>
+    <label class="ver-wrap" title="Switch benchmark version (v1.2 to latest)">
+      <span class="ver-lbl">Version</span>
+      <select id="verSelect" aria-label="Benchmark version"></select>
+    </label>
     <div class="meta" id="meta"></div>
   </header>
   <aside class="side">
@@ -28,6 +32,7 @@
   </aside>
   <main class="main">
     <div class="controls" id="controls"></div>
+    <div class="ver-banner" id="verBanner" hidden></div>
     <div class="stage" id="stage"><div class="fig"><p class="notice">Loading the data…</p></div></div>
   </main>
 </div>
