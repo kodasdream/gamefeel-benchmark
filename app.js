@@ -92,11 +92,6 @@ const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (co
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
-const HIGHLIGHTS = ['Qwen-4-27B-Early? (qoDuck)', 'Qwen-4-Flash-Early? (qoHawk)'];   // measured in purple against the frontier line
-const HIGHLIGHT_NAMES = HIGHLIGHTS.join(' and ');
-const HIGHLIGHT_TITLE = 'QWEN-4 HIGHLIGHT';
-const isHighlight = (d) => HIGHLIGHTS.includes(d.model);
-const HIGHLIGHT_SCOPES = new Set(['overall', 're']);   // price charts where it is left off the line
 const NEW_MODELS = ['Gemini-4-Neon'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => !META.is_historical && (NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`));   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
@@ -111,7 +106,7 @@ const TOP = 280;                   // first content line, below the title block
 // RE board (opt-in look in the RE section): the five parts in the validated reference categorical slots 1-5, fixed order
 const RE_PART_COLOR = { re_blind: '#2a78d6', re_blind_hard: '#eb6834', re_assisted: '#1baf7a', re_assisted_hard: '#eda100', re_released: '#e87ba4' };
 const LEGACY_FILL = '#c3cad8';     // an older v1.5.1 RE score: its parts are unknown, so one neutral block
-const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb', purple: '#9c27b0' };
+const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb' };
 const NONE = new Set();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -645,44 +640,16 @@ function paretoFront(rows, scope) {
   }
   return front;
 }
-/* The frontier line itself, as drawn (straight segments in log price): its score at a given price,
-   and the price at which it reaches a given score. Null where the line does not reach. */
-function lineScoreAt(front, scope, px) {
-  for (let i = 0; i + 1 < front.length; i++) {
-    const a = front[i], b = front[i + 1];
-    if (px >= a.px && px <= b.px) {
-      const t = Math.log(px / a.px) / Math.log(b.px / a.px);
-      return scoreOf(a, scope) + t * (scoreOf(b, scope) - scoreOf(a, scope));
-    }
-  }
-  return null;
-}
-function linePriceAt(front, scope, sc) {
-  for (let i = 0; i + 1 < front.length; i++) {
-    const a = front[i], b = front[i + 1], sa = scoreOf(a, scope), sb = scoreOf(b, scope);
-    if (sc >= sa && sc <= sb) {
-      const t = (sc - sa) / (sb - sa);
-      return Math.exp(Math.log(a.px) + t * Math.log(b.px / a.px));
-    }
-  }
-  return null;
-}
 /* Real glyph widths (in figure units) from the browser, so label boxes match the drawn text. */
 const _measure = document.createElement('canvas').getContext('2d');
 const textW = (t, size, weight) => {
   _measure.font = `${weight} ${size}px "Ubuntu Sans", "Segoe UI", system-ui, sans-serif`;
   return _measure.measureText(t).width;
 };
-/* Boxes for the purple marks, so that point labels keep clear of them (placeLabels takes them as marks). */
-const markBox = (x0, x1, y0, y1) => ({ x0: Math.min(x0, x1), x1: Math.max(x0, x1), y0: Math.min(y0, y1), y1: Math.max(y0, y1) });
-const textBox = (t, size, weight, anchor, x, baseline) => {
-  const w = textW(t, size, weight), left = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x;
-  return markBox(left - 6, left + w + 6, baseline - size * 0.8, baseline + size * 0.3);
-};
 /* Places each point label where it displaces least: nearest slot above or below the dot, on either side.
-   A label must stay inside the plot and clear of every other label, dot and icon, and of every purple mark. */
-const LABEL_STATS = { fallback: 0, purple: 0 };   // labels that found no clear slot (checked by the test run)
-function placeLabels(pts, T, B, WP, marks = []) {
+   A label must stay inside the plot and clear of every other label, dot and icon. */
+const LABEL_STATS = { fallback: 0 };   // labels that found no clear slot (checked by the test run)
+function placeLabels(pts, T, B, WP) {
   const R = WP - 80, placed = [];
   const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
   const dots = pts.map((p) => ({ x0: p.x - 38, x1: p.x + 38, y0: p.y - 38, y1: p.y + 38 }));
@@ -703,7 +670,6 @@ function placeLabels(pts, T, B, WP, marks = []) {
           if (box.x0 < 40 || box.x1 > WP - 30) continue;
           if (placed.some((q) => hits(q, box))) continue;   // label boxes are 31 units tall
           if (dots.some((d) => hits(d, box))) continue;
-          if (marks.some((m) => hits(m, box))) continue;   // the purple marks
           best = box;
           break;
         }
@@ -718,88 +684,20 @@ function placeLabels(pts, T, B, WP, marks = []) {
   });
   return pts;
 }
-/* The purple marks of the highlight figures. Each Qwen-4 model has a bracket (from the middle of its dot down to the blue line)
-   and a line across (from its price to the price the blue line expects for its score). Each label takes the first spot in
-   its list that clears the purple lines, every dot, the other purple labels and the plot. */
-const purpleText = (c) => `<text x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}" font-size="26" font-weight="800" text-anchor="${c.anchor}" fill="${C.purple}">${esc(c.text)}</text>`;
-const styleNote = (ms) => (ms.length > 1 ? ` Solid: ${ms[0].q.model}. Dashed: ${ms[1].q.model}.` : '');
-function bracketSpots(m) {   // beside the bracket, at its middle; moved up or down if that spot is taken
-  const mid = (m.yq + m.yFoot) / 2 + 8, out = [];
-  for (const dy of [0, -36, 36, -72, 72]) {
-    out.push({ text: m.bracketText, x: m.bx - 40, y: mid + dy, anchor: 'end' });
-    out.push({ text: m.bracketText, x: m.bx + 40, y: mid + dy, anchor: 'start' });
-  }
-  return out;
-}
-function lineSpots(m) {   // above or below the line across, centred on it; then past its end, or before the dot
-  const mx = (m.bx + m.xPrice) / 2, out = [];
-  for (const y of [m.yq - 36, m.yq + 52, m.yq - 72, m.yq + 88, m.yq - 108, m.yq + 124]) out.push({ text: m.lineText, x: mx, y, anchor: 'middle' });
-  out.push({ text: m.lineText, x: m.xPrice + 14, y: m.yq + 8, anchor: 'start' }, { text: m.lineText, x: m.bx - 14, y: m.yq + 8, anchor: 'end' });
-  return out;
-}
-function placePurpleLabels(items, dotBoxes, bounds) {
-  const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-  const boxes = [];   // every purple mark so far: the lines first, then each label as it is placed
-  items.forEach((m) => {
-    if (m.yFoot != null) boxes.push(markBox(m.bx - 8, m.bx + 8, m.yq, m.yFoot));
-    if (m.xPrice != null) boxes.push(markBox(m.bx, m.xPrice, m.yq - 8, m.yq + 8));
-  });
-  const pick = (spots) => {
-    for (const c of spots) {
-      const box = textBox(c.text, 26, 800, c.anchor, c.x, c.y);
-      const inside = box.x0 >= bounds.L && box.x1 <= bounds.R && box.y0 >= bounds.T && box.y1 <= bounds.B;
-      if (inside && !boxes.some((b) => hit(b, box)) && !dotBoxes.some((b) => hit(b, box))) { boxes.push(box); return c; }
-    }
-    LABEL_STATS.purple++;   // no clear spot: the first choice
-    const c = spots[0];
-    boxes.push(textBox(c.text, 26, 800, c.anchor, c.x, c.y));
-    return c;
-  };
-  const spots = items.map((m) => ({
-    bracket: m.yFoot != null ? pick(bracketSpots(m)) : null,
-    line: m.xPrice != null ? pick(lineSpots(m)) : null,
-  }));
-  return { spots, boxes };
-}
-function purpleMarks(items, placed) {   // the purple lines and labels; the second model's lines are dashed
-  let out = '';
-  items.forEach((m, i) => {
-    const dash = i ? ' stroke-dasharray="14 10"' : '';
-    if (m.yFoot != null) {
-      out += `<line x1="${m.bx.toFixed(1)}" y1="${m.yFoot.toFixed(1)}" x2="${m.bx.toFixed(1)}" y2="${m.yq.toFixed(1)}" stroke="${C.purple}" stroke-width="5" stroke-linecap="round"${dash}/>`;
-      out += purpleText(placed.spots[i].bracket);
-    }
-    if (m.xPrice != null) {
-      out += `<line x1="${m.bx.toFixed(1)}" y1="${m.yq.toFixed(1)}" x2="${m.xPrice.toFixed(1)}" y2="${m.yq.toFixed(1)}" stroke="${C.purple}" stroke-width="5" stroke-linecap="round"${dash}/>`;
-      out += purpleText(placed.spots[i].line);
-    }
-  });
-  return out;
-}
-function ppFig(scope, hidden, highlight = false) {
+function ppFig(scope, hidden) {
   const L = 170, R = WP - 80, T = TOP + 30;
-  const hl = highlight && HIGHLIGHT_SCOPES.has(scope);   // the Qwen highlight figure: Qwen off the blue line, measured in purple
-  const title = `${figTitle(scope)} · PRICE TO PERFORMANCE${hl ? ` · ${HIGHLIGHT_TITLE}` : ''}`;
+  const title = `${figTitle(scope)} · PRICE TO PERFORMANCE`;
   const lines = [
     'Price per task against score, log scale. Up and to the left is cheaper and higher.',
     'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
   ];
   if (scope === 're') lines.push(reContextLine());
-  if (hl) lines.push(`${HIGHLIGHT_NAMES} are left off the blue line, so the purple lines can measure each against that line.`);
   const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price != null);
   const unpriced = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price == null);
   if (!rows.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No model is shown for this view.') };
 
-  // the highlight figure takes the Qwen-4 models off the blue line so the purple marks can measure them; every other chart includes them like any model
-  const qs = hl ? rows.filter(isHighlight) : [];
-  const front = paretoFront(rows.filter((d) => !qs.includes(d)), scope);
-  const measures = qs.map((q) => ({ q, sq: scoreOf(q, scope), foot: lineScoreAt(front, scope, q.px), priceAt: linePriceAt(front, scope, scoreOf(q, scope)) }));
+  const front = paretoFront(rows, scope);
   const notes = [];
-  for (const m of measures) {
-    if (m.foot == null) notes.push(`The blue line does not reach the price of ${m.q.model}, so its gap to the line is not drawn.`);
-    if (m.priceAt == null) notes.push(`The blue line does not reach a score of ${fmtScore(m.sq)}, so the price ${m.q.model} would be expected at is not drawn.`);
-  }
-  if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above or below the blue line at its price (the bracket), and the line across at its score, from its price to the price the blue line expects. The length of that line is how much cheaper or pricier it is.${styleNote(measures)}`);
   if (unpriced.length) notes.push(`Not shown, no price given: ${namesOf(unpriced)}.`);
   const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
   const B = 1530, H = 1700 + 36 * Math.max(0, noteLines.length - 1);
@@ -829,22 +727,10 @@ function ppFig(scope, hidden, highlight = false) {
   s += `<text x="34" y="${(T + B) / 2}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}" transform="rotate(-90 34 ${(T + B) / 2})">score (out of 100)</text>`;
 
   // pareto frontier: straight segments between the non-dominated points
-  // the blue line is the frontier of the rows that are not left off it (see the measures above)
   if (front.length > 1) {
     s += valueBand(front.map((d) => [X(d.px), Y(scoreOf(d, scope))]), B);
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
   }
-  // purple, highlight figure only: each Qwen-4 model gets a bracket from the middle of its dot straight down to the blue line directly below it
-  // (the dot covers its top), and a line across at its score, from its price to the price the blue line expects
-  const dotBoxes = rows.map((d) => ({ x0: X(d.px) - 32, x1: X(d.px) + 32, y0: Y(scoreOf(d, scope)) - 32, y1: Y(scoreOf(d, scope)) + 32 }));
-  const items = measures.map((m) => ({
-    bx: X(m.q.px), yq: Y(m.sq), yFoot: m.foot != null ? Y(m.foot) : null, xPrice: m.priceAt != null ? X(m.priceAt) : null,
-    bracketText: m.foot != null ? `${m.q.model}: ${signed(m.sq - m.foot)} ${m.sq >= m.foot ? 'ahead' : 'behind'} for its cost` : '',
-    lineText: m.priceAt != null ? `${m.q.model}: $${m.priceAt.toFixed(2)} expected · ${timesText(m.priceAt / m.q.price, 'cheaper', 'pricier')}` : '',
-  }));
-  const placed = placePurpleLabels(items, dotBoxes, { L, R, T, B });
-  const marks = placed.boxes;   // the purple marks; point labels keep clear of them
-  s += purpleMarks(items, placed);
   // same model at several effort levels: a dotted line joins them
   const fam = {};
   rows.forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
@@ -857,7 +743,7 @@ function ppFig(scope, hidden, highlight = false) {
   const pts = placeLabels(rows.map((d) => {
     const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScore(sc)}`;
     return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
-  }), T, B, WP, marks);
+  }), T, B, WP);
   pts.forEach((p) => {
     const d = p.d;
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScore(p.sc)}`)}">`;
@@ -875,10 +761,9 @@ function ppFig(scope, hidden, highlight = false) {
 }
 
 // a point on the price and size charts: the lab logo in a white disc ringed in the lab colour; on the frontier an azure ring around it
-function logoPoint(d, x, y, onFront, purple = false) {
+function logoPoint(d, x, y, onFront) {
   let s = '';
   if (onFront) s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="35" fill="none" stroke="${C.azure}" stroke-width="5"/>`;
-  if (purple) s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="35" fill="none" stroke="${C.purple}" stroke-width="5"/>`;
   s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="27" fill="#ffffff" stroke="${d.tint}" stroke-width="4"/>`;
   s += iconSvg(d, (x - 16).toFixed(1), (y - 16).toFixed(1), 32);
   return s;
@@ -904,30 +789,22 @@ function wrapText(t, size, weight, maxW) {
 }
 
 /* ---------- figure: size to performance (log model size vs score; open-weight models with a size only) ---------- */
-function sizeFig(scope, hidden, highlight = false) {
-  const title = `${figTitle(scope)} · SIZE TO PERFORMANCE${highlight ? ` · ${HIGHLIGHT_TITLE}` : ''}`;
+function sizeFig(scope, hidden) {
+  const title = `${figTitle(scope)} · SIZE TO PERFORMANCE`;
   const lines = [
     'Model size against score, log scale. Up and to the left is smaller and higher.',
     'Open-weight models with a recorded size only. Blue ring and line: pareto frontier, no model on it is both smaller and higher.',
   ];
   if (scope === 're') lines.push(reContextLine());
-  if (highlight) lines.push(`${HIGHLIGHT_NAMES} are left off the blue line (purple rings), so the purple lines measure each against the line only where the line reaches it.`);
   const shown = DATA.filter((d) => !hidden.has(d.id) && d.openWeights && d.size != null && scoreOf(d, scope) != null);
   if (!shown.length) return { W: WP, H: 600, body: frame(WP, 600, title, lines) + emptyNote(WP, 360, 'No open-weight model with a size is shown for this view.') };
   const rows = shown.map((d) => ({ ...d, px: d.size }));     // paretoFront reads px as the cost; here the cost is the size
-  const qs = highlight ? rows.filter(isHighlight) : [];   // only the highlight figure takes Qwen off the line
-  const front = paretoFront(rows.filter((d) => !qs.includes(d)), scope);
+  const front = paretoFront(rows, scope);
 
-  // footnotes: the sizes with their quantization, what is still missing, what the line cannot measure, and the purple marks
+  // footnotes: the sizes with their quantization and what is still missing
   const notes = [`Sizes: ${rows.map((d) => `${d.model} ${d.size} GB${d.sizeBasis ? ` (${d.sizeBasis})` : ''}`).join('; ')}.`];
   const unsized = [...new Set(DATA.filter((d) => !hidden.has(d.id) && d.openWeights && d.size == null).map((d) => d.model))];
   if (unsized.length) notes.push(`Not shown, open weights but no size yet: ${unsized.join(', ')}.`);
-  const measures = qs.map((q) => ({ q, sq: scoreOf(q, scope), foot: lineScoreAt(front, scope, q.px), priceAt: linePriceAt(front, scope, scoreOf(q, scope)) }));
-  for (const m of measures) {
-    if (m.foot == null) notes.push(`The blue line does not reach ${m.q.size} GB, so it cannot measure ${m.q.model} at its size.`);
-    if (m.priceAt == null) notes.push(`The blue line does not reach a score of ${fmtScore(m.sq)}, so the size ${m.q.model} would be expected at is not drawn.`);
-  }
-  if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above or below the blue line at its size (the bracket), and the line across at its score, from its size to the size the line expects.${styleNote(measures)}`);
   const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
   const B = 1530, H = B + 170 + 36 * noteLines.length, T = TOP + 30, L = 170, R = WP - 80;
   const xs = rows.map((d) => d.size), ys = rows.map((d) => scoreOf(d, scope));
@@ -960,25 +837,15 @@ function sizeFig(scope, hidden, highlight = false) {
     s += valueBand(front.map((d) => [X(d.px), Y(scoreOf(d, scope))]), B);
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
   }
-  // purple, highlight figure only, as in the price chart: each Qwen-4 model's bracket and line across, labels placed where they clear everything
-  const dotBoxes = rows.map((d) => ({ x0: X(d.px) - 32, x1: X(d.px) + 32, y0: Y(scoreOf(d, scope)) - 32, y1: Y(scoreOf(d, scope)) + 32 }));
-  const items = measures.map((m) => ({
-    bx: X(m.q.px), yq: Y(m.sq), yFoot: m.foot != null ? Y(m.foot) : null, xPrice: m.priceAt != null ? X(m.priceAt) : null,
-    bracketText: m.foot != null ? `${m.q.model}: ${signed(m.sq - m.foot)} ${m.sq >= m.foot ? 'ahead' : 'behind'} for its size` : '',
-    lineText: m.priceAt != null ? `${m.q.model}: ${Math.round(m.priceAt)} GB expected · ${timesText(m.priceAt / m.q.size, 'smaller', 'larger')}` : '',
-  }));
-  const placed = placePurpleLabels(items, dotBoxes, { L, R, T, B });
-  const marks = placed.boxes;   // point labels keep clear of the purple marks
-  s += purpleMarks(items, placed);
   const pts = placeLabels(rows.map((d) => {
     const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScore(sc)}  ${d.size} GB`;
     return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
-  }), T, B, WP, marks);
+  }), T, B, WP);
   pts.forEach((p) => {
     const d = p.d;
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.size} GB · score ${fmtScore(p.sc)}`)}">`;
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
-    s += logoPoint(d, p.x, p.y, front.includes(d), qs.includes(d));
+    s += logoPoint(d, p.x, p.y, front.includes(d));
     if (isWarn(d)) s += warnSvg(p.x, p.y - 40, 30);
     s += `</g>`;
   });
@@ -1281,8 +1148,6 @@ function pairBars(rows, o) {
 // the key above a paired-column chart: what the solid column, the dashed outline and (optionally) the ink bar are
 const pairKey = (main, ref, marker) => `<div class="pairkey"><span><i class="k-solid"></i>${esc(main)}</span><span><i class="k-dash"></i>${esc(ref)}</span>${marker ? `<span><i class="k-mark"></i>${esc(marker)}</span>` : ''}<span><i class="k-chip"></i>difference</span></div>`;
 const signed = (v, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
-// expected over actual as "2.6× cheaper", or below 1 as "13.3× pricier": the highlight's line across can point either way
-const timesText = (r, less, more) => r >= 1 ? `${r.toFixed(1)}× ${less}` : `${(1 / r).toFixed(1)}× ${more}`;
 
 /* ---------- blind vs assisted RE ---------- */
 function reHelpHTML(sort, hidden) {
@@ -1888,10 +1753,6 @@ const EXPORTS = [
   { name: 'scores-re-combined-hard', build: () => reSingleFig('combined-hard') },
   { name: 'scores-re-board', build: () => reBoardFig(NONE, true) },   // the opt-in board look, as an extra RE image
   { name: 'size-performance-overall', build: () => sizeFig('overall', NONE) },
-  // the Qwen highlight: the overall and RE price charts and the overall size chart, with both Qwen-4 models left off the blue line and measured in purple
-  { name: 'qwen-highlight-price-performance-overall', build: () => ppFig('overall', NONE, true) },
-  { name: 'qwen-highlight-price-performance-re', build: () => ppFig('re', NONE, true) },
-  { name: 'qwen-highlight-size-performance-overall', build: () => sizeFig('overall', NONE, true) },
   // the HTML views from the ☰ menu, all models, default sort
   { name: 'view-every-score-at-a-glance', build: () => ({ html: glanceHTML({ key: 'avg', dir: -1 }, NONE) }) },
   { name: 'view-re-blind-vs-assisted', build: () => ({ html: reHelpHTML({ key: 'gain', dir: -1 }, NONE) }) },
