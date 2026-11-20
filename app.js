@@ -147,9 +147,14 @@ function deriveFields() {
 // Overall only ranks models with all seven scores (six scores plus Gamefeel RE combined). Subcategories rank any model with that score.
 // The explorer's RE section can toggle between combined / blind / assisted / released / blind hard / assisted hard. RE_VIEW is set by render() for that
 // view only; renderExport() resets it to 'combined', so exports and every other tab always use the combined score.
-const RE_VIEWS = ['combined', 'blind', 'assisted', 'released', 'blind-hard', 'assisted-hard', 'combined-hard'];
-const RE_FIELD = { combined: 're_combined', blind: 're_blind', assisted: 're_assisted', released: 're_released', 'blind-hard': 're_blind_hard', 'assisted-hard': 're_assisted_hard', 'combined-hard': 're_combined_hard' };
-const RE_LABEL = { combined: 'Combined', blind: 'Blind', assisted: 'Assisted', released: 'Released', 'blind-hard': 'Blind hard', 'assisted-hard': 'Assisted hard', 'combined-hard': 'Combined hard' };
+const RE_VIEWS = ['combined', 'blind', 'assisted', 'released', 'blind-hard', 'blind-hard-human', 'assisted-hard', 'combined-hard'];
+const RE_FIELD = { combined: 're_combined', blind: 're_blind', assisted: 're_assisted', released: 're_released', 'blind-hard': 're_blind_hard', 'blind-hard-human': 're_blind_hard', 'assisted-hard': 're_assisted_hard', 'combined-hard': 're_combined_hard' };
+const RE_LABEL = { combined: 'Combined', blind: 'Blind', assisted: 'Assisted', released: 'Released', 'blind-hard': 'Blind hard', 'blind-hard-human': 'Blind hard · vs Human', 'assisted-hard': 'Assisted hard', 'combined-hard': 'Combined hard' };
+// Human reference baselines on Blind Hard (unreleased game, hand-rated cards, 1x):
+// regular Blind Hard shows only the ~2% inexperienced gamer line so the AI scale stays unstretched;
+// the dedicated Blind Hard · vs Human section scales to 60% to show both baselines together.
+const HUMAN_AVG_BLIND_HARD = { v: 2, label: '~2% · Avg 120 IQ human gamer (no experience)', color: '#b45309' };
+const HUMAN_EXPERT_BLIND_HARD = { v: 60, label: '~60% · Human expert (100+ hrs experience)', color: '#0f766e' };
 // v1.5.2 RE combined (computed by the build): weighted mean of five parts; a missing part is estimated from the parts the model has
 const RE_PARTS = [['re_blind', 'blind', 5], ['re_blind_hard', 'blind hard', 2], ['re_assisted', 'assisted', 3], ['re_assisted_hard', 'assisted hard', 1], ['re_released', 'released', 2]];
 const RE_RULE = 'Combined = (5 × blind + 2 × blind hard + 3 × assisted + 1 × assisted hard + 2 × released) ÷ 13. A part a model has not run is estimated from the parts it has.';
@@ -242,7 +247,8 @@ const RE_TIP = {
   blind: 'No worked examples shown — the model rates the proposals cold',
   assisted: 'The model studies 39 rated worked examples before rating the rest',
   released: 'Blind, on proposals for released commercial games',
-  'blind-hard': 'Blind, scored only on the cards the designers rated by hand',
+  'blind-hard': 'Blind, scored only on the cards the designers rated by hand (includes ~2% average human gamer baseline)',
+  'blind-hard-human': 'Blind hard scaled to 60% to compare AI models against ~2% average 120 IQ human gamer (no experience) and ~60% human expert (100+ hrs)',
   'assisted-hard': 'Assisted, scored only on the cards the designers rated by hand',
   'combined-hard': '0.66 × blind hard + 0.34 × assisted hard (hand-rated cards only, 1x)',
 };
@@ -265,7 +271,11 @@ const RE_LINES = {
   ],
   'blind-hard': [
     'Gamefeel RE blind hard: the blind run, scored only on the cards the designers rated by hand, at 1x.',
-    'No worked examples. Overall uses RE combined, not this view.',
+    'Dashed reference line: ~2% average 120 IQ human gamer (no gameplay experience in the unreleased game). See Blind hard · vs Human for the ~60% human expert baseline.',
+  ],
+  'blind-hard-human': [
+    'Gamefeel RE blind hard vs human baselines: hand-rated cards only (1x), scaled to 60% so the gap to a human expert is visible.',
+    'Average 120 IQ human gamer (no gameplay experience in the unreleased game): ~2%. Human expert (100+ hours of gameplay experience): ~60%.',
   ],
   'assisted-hard': [
     'Gamefeel RE assisted hard: the assisted run, scored only on the cards the designers rated by hand, at 1x.',
@@ -286,6 +296,8 @@ const reContextLine = () => {
   if (RE_VIEW === 'combined' && rm === 'split4') return 'Score = RE combined (blind, assisted and released-games RE). Overall uses this score at 1.5x weight.';
   return RE_VIEW === 'combined'
     ? `Score = RE combined. ${RE_RULE} Overall uses this score at 1.5x weight.`
+    : RE_VIEW === 'blind-hard-human'
+      ? `Score = RE blind hard vs human baselines (~2% avg 120 IQ gamer, ~60% expert with 100+ hrs). ${RE_HARD} Overall uses RE combined, not this view.`
     : RE_VIEW.endsWith('-hard')
       ? `Score = RE ${RE_LABEL[RE_VIEW].toLowerCase()}. ${RE_HARD} Overall uses RE combined, not this view.`
     : RE_VIEW === 'blind'
@@ -365,9 +377,12 @@ function columnChart(items, o) {
     s += `<text x="${X0 - 18}" y="${(Y(t) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${+t.toFixed(1)}</text>`;
   });
   s += `<text x="${X0 - 18}" y="${yT - 30}" font-size="20" font-weight="700" text-anchor="end" fill="${C.faint}">${esc(o.unit)}</text>`;
+  const colTops = [];
   items.forEach((it, i) => {
     const d = it.d, cx = x0 + pitch * (i + 0.5);
     const h = Math.max(6, ((it.v - yMin) / ySpan) * COL.plot), top = yB - h;
+    const labelTop = top - 14 - vFont - (isNew(d) ? 42 : 0) - (isWarn(d) ? 34 : 0);
+    colTops.push({ x0: cx - pitch / 2, x1: cx + pitch / 2, top: labelTop });
     const nx = Math.max(cx + 12, 24 + textW(shortName(d), 23, 800) * Math.SQRT1_2);   // a long diagonal name stays inside the figure
     s += `<g class="col" data-m="${esc(d.id)}" data-tip="${esc([shortName(d), d.effort, d.lab, it.tip].filter(Boolean).join(' · '))}">`;
     s += `<rect x="${(cx - pitch / 2).toFixed(1)}" y="${yT - 60}" width="${pitch.toFixed(1)}" height="${COL.plot + COL.label + 60}" fill="transparent"/>`;
@@ -392,6 +407,30 @@ function columnChart(items, o) {
     s += `<text x="${cx.toFixed(1)}" y="${yB + 120}" font-size="${sFont.toFixed(1)}" font-weight="600" text-anchor="middle" fill="${C.soft}">${priceLabel(d)}</text>`;
     s += `<text transform="translate(${nx.toFixed(1)} ${yB + 150}) rotate(-45)" font-size="23" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(shortName(d))}</text>`;
     s += `</g>`;
+  });
+  // Optional horizontal reference lines (e.g. human baselines on Blind Hard), drawn above bars with collision-free pill labels
+  const placedPills = [];
+  (o.refLines || []).forEach((rl) => {
+    if (rl.v < yMin || rl.v > o.max) return;
+    const ry = Y(rl.v);
+    s += `<line x1="${X0}" y1="${ry.toFixed(1)}" x2="${X1}" y2="${ry.toFixed(1)}" stroke="${rl.color}" stroke-width="3.5" stroke-dasharray="14 9" stroke-opacity="0.92"/>`;
+    const pw = textW(rl.label, 20, 800) + 28, ph = 36;
+    const px = X0 + 8;
+    const under = colTops.filter((c) => c.x1 >= px - 8 && c.x0 <= px + pw + 8);
+    const obsTop = under.length ? Math.min(...under.map((c) => c.top)) : yB;
+    let py = (ry - ph - 10 >= yT) ? (ry - ph - 10) : (ry + 12);
+    if (ry - ph - 10 >= yT && py + ph + 8 > obsTop) py = Math.max(yT + 8, obsTop - ph - 18);
+    for (const p of placedPills) {
+      if (py < p.y1 + 8 && py + ph > p.y0 - 8) py = Math.min(obsTop - ph - 14, p.y1 + 10);
+    }
+    placedPills.push({ y0: py, y1: py + ph });
+    if (py + ph + 12 < ry) {
+      const lx = px + 8;
+      s += `<line x1="${lx.toFixed(1)}" y1="${(py + ph).toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ry.toFixed(1)}" stroke="${rl.color}" stroke-width="2.5" stroke-dasharray="5 4" stroke-opacity="0.75"/>`;
+      s += `<circle cx="${lx.toFixed(1)}" cy="${ry.toFixed(1)}" r="4.5" fill="${rl.color}"/>`;
+    }
+    s += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph}" rx="10" fill="#ffffff" fill-opacity="0.96" stroke="${rl.color}" stroke-width="2.5"/>`;
+    s += `<text x="${(px + 14).toFixed(1)}" y="${(py + 25).toFixed(1)}" font-size="20" font-weight="800" fill="${rl.color}">${esc(rl.label)}</text>`;
   });
   return { H, body: s };
 }
@@ -459,8 +498,9 @@ function scoresFigInner(scope, hidden) {
       ? [...reLinesForVer(), `${topNote(rows.length, total)} Scale 0 to the best score; price per task under each column.`]
       : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, `Only models with a score in this subcategory. ${topNote(rows.length, total)}`];
   // best on the right: the columns run from the lowest score on the left to the best on the right
+  const refLines = scope === 're' && RE_VIEW === 'blind-hard' ? [HUMAN_AVG_BLIND_HARD] : [];
   const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}${scope === 're' && RE_VIEW === 'combined' && reParts(d) ? ` · ${reParts(d)}` : ''}` }; }),
-    { top: topFor(lines), ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1, ovMin), unit: 'score', empty: scope === 're' && rm === 'none' ? 'Gamefeel · RE was introduced in v1.3.' : 'No model is shown for this view.' });
+    { top: topFor(lines), ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1, ovMin), unit: 'score', refLines, empty: scope === 're' && rm === 'none' ? 'Gamefeel · RE was introduced in v1.3.' : 'No model is shown for this view.' });
   const subset = rows.filter((d) => d.reNote);
   const foot = footNotes([
     ...(partial.length ? ['Partial runs without scores in all sections are excluded from Overall (they appear in the subcategories they have scores in).'] : []),
@@ -482,7 +522,7 @@ function reStackedFig() {
   const sections = [
     ['re_blind', 'BLIND', 'No worked examples shown — the model rates the game proposals cold.'],
     ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
-    ['re_blind_hard', 'BLIND · HARD', 'The blind run, scored only on the cards the designers rated by hand, at 1x.'],
+    ['re_blind_hard', 'BLIND · HARD', 'The blind run, scored only on the cards the designers rated by hand, at 1x (dashed line: ~2% avg 120 IQ human gamer).'],
     ['re_assisted_hard', 'ASSISTED · HARD', 'The assisted run, scored only on the cards the designers rated by hand, at 1x.'],
     ['re_released', 'RELEASED · BLIND', 'Blind, on proposals for released commercial games such as Balatro, Slay the Spire and World of Warcraft.'],
     ['re_combined', 'COMBINED', '5 × blind + 2 × blind hard + 3 × assisted + 1 × assisted hard + 2 × released, ÷ 13. Missing parts estimated from the rest.'],
@@ -504,7 +544,8 @@ function reStackedFig() {
     body += `<text x="64" y="60" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
     const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${label} ${fmtScore(v)} · ${priceText(d)}${key === 're_combined' ? ` · ${reParts(d)}` : ''}` }; });
     const legKey = key;   // every RE part can carry an outdated v1.5.1 score
-    const chart = withLegacy(legKey, () => columnChart(items, { top: 80, ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` }));
+    const refLines = key === 're_blind_hard' ? [HUMAN_AVG_BLIND_HARD] : [];
+    const chart = withLegacy(legKey, () => columnChart(items, { top: 80, ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', refLines, empty: `No model has a ${label.toLowerCase()} score yet.` }));
     return { body: body + chart.body, H: chart.H };
   });
   let body = '', top = topFor(lines);
@@ -623,11 +664,51 @@ function reSingleFigInner(view) {
   const rows = reRows(key);
   const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${RE_LABEL[view].toLowerCase()} ${fmtScore(v)} · ${priceText(d)}${view === 'combined' ? ` · ${reParts(d)}` : ''}` }; });
   const lines0 = [...RE_LINES[view]];
-  const chart = columnChart(items, { top: topFor([...lines0, '']), ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', empty: `No model has a ${RE_LABEL[view].toLowerCase()} score yet.` });
+  const refLines = view === 'blind-hard' ? [HUMAN_AVG_BLIND_HARD] : [];
+  const chart = columnChart(items, { top: topFor([...lines0, '']), ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', refLines, empty: `No model has a ${RE_LABEL[view].toLowerCase()} score yet.` });
   const lines = [...lines0,
     `Best reasoning effort per model, all ${rows.length} models. Scale 0 to the best score; price per task under each column.`];
   const foot = footNotes([LEGACY_MARK ? legacyFootnote(rows) : null].filter(Boolean), chart.H);
   return { W: WC, H: foot.H, body: frame(WC, foot.H, `GAMEFEEL · RE (${RE_LABEL[view].toUpperCase()}) · SCORES`, lines) + chart.body + foot.body, wide: true };
+}
+
+/* ---------- figure: Blind Hard vs Human baselines (scaled to 60% so ~2% avg gamer and ~60% expert both show cleanly) ---------- */
+function reBlindHardHumanFig(hidden = NONE) {
+  return withLegacy('re_blind_hard', () => {
+    let rows = DATA.filter((d) => !hidden.has(d.id) && valOfPart(d, 're_blind_hard') != null)
+      .sort((a, b) => valOfPart(b, 're_blind_hard') - valOfPart(a, 're_blind_hard'));
+    rows = bestPerModel(rows);
+    const total = rows.length;
+    rows = rows.slice(0, TOP_N);
+    const best = rows[0] ? valOfPart(rows[0], 're_blind_hard') : 0;
+    const maxVal = Math.max(HUMAN_EXPERT_BLIND_HARD.v, best);
+    const lines = [
+      ...RE_LINES['blind-hard-human'],
+      `${topNote(rows.length, total)} Scale 0 to ${maxVal} (includes ~60% expert baseline); price per task under each column.`,
+    ];
+    const items = rows.slice().reverse().map((d) => {
+      const v = valOfPart(d, 're_blind_hard');
+      return { d, v, value: fmtScore(v), tip: `blind hard ${fmtScore(v)} · ${priceText(d)}` };
+    });
+    const chart = columnChart(items, {
+      top: topFor(lines),
+      ...fitAxis(maxVal),
+      unit: 'score',
+      refLines: [HUMAN_AVG_BLIND_HARD, HUMAN_EXPERT_BLIND_HARD],
+      empty: 'No model is shown for this view.',
+    });
+    const subset = rows.filter((d) => d.reNote);
+    const foot = footNotes([
+      ...(subset.length ? [reFootnote(subset)] : []),
+      ...(LEGACY_MARK && legacyFootnote(rows) ? [legacyFootnote(rows)] : []),
+    ], chart.H);
+    return {
+      W: WC,
+      H: foot.H,
+      body: frame(WC, foot.H, 'GAMEFEEL · RE (BLIND HARD · VS HUMAN) · SCORES', lines) + chart.body + foot.body,
+      wide: true,
+    };
+  });
 }
 
 /* ---------- figure: price to performance (log price vs score) ---------- */
@@ -1037,11 +1118,35 @@ function rankListInner(scope, hidden) {
   rows = bestPerModel(rows);
   const total = rows.length;
   rows = rows.slice(0, TOP_N);
-  const max = rows.length ? scoreOf(rows[0], scope) : 1;
+  const isBH = scope === 're' && RE_VIEW === 'blind-hard';
+  const isBHH = scope === 're' && RE_VIEW === 'blind-hard-human';
+  const refs = isBHH ? [
+    { v: HUMAN_EXPERT_BLIND_HARD.v, name: 'Human expert', note: '100+ hrs experience', color: HUMAN_EXPERT_BLIND_HARD.color },
+    { v: HUMAN_AVG_BLIND_HARD.v, name: 'Avg 120 IQ human gamer', note: 'no experience', color: HUMAN_AVG_BLIND_HARD.color },
+  ] : isBH ? [
+    { v: HUMAN_AVG_BLIND_HARD.v, name: 'Avg 120 IQ human gamer', note: 'no experience', color: HUMAN_AVG_BLIND_HARD.color },
+  ] : [];
+  const maxAI = rows.length ? scoreOf(rows[0], scope) : 1;
+  const max = isBHH ? Math.max(HUMAN_EXPERT_BLIND_HARD.v, maxAI) : maxAI;
   const title = scope === 'overall' ? 'Overall' : scope === 're' ? `Gamefeel RE · ${RE_LABEL[RE_VIEW].toLowerCase()}` : SCOPE_LABEL[scope];
-  const list = rows.map((d, i) => { const v = scoreOf(d, scope); return `<li data-m="${esc(d.id)}"><span class="rk">${i + 1}</span><div class="rl"><div class="rn">${nameCell(d)}</div>` +
-    `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${scope === 'overall' ? v.toFixed(1) : fmtScore(v)}</b><em>${priceLabel(d)}</em></div></div></li>`; }).join('');
-  const sub = scope === 'overall' ? 'Weighted average of the seven scores (RE combined counts 1.5x). Models with a partial record are not ranked.' : scope === 're' ? 'Feedback on game proposals, especially balancing.' : 'Score out of 100.';
+  const merged = [
+    ...rows.map((d, i) => ({ kind: 'ai', d, i, v: scoreOf(d, scope) })),
+    ...refs.map((r) => ({ kind: 'ref', r, v: r.v })),
+  ].sort((a, b) => b.v - a.v || (a.kind === 'ref' ? -1 : 1));
+  const list = merged.map((it) => {
+    if (it.kind === 'ref') {
+      const r = it.r;
+      return `<li class="href-row" style="--ref-c:${r.color}"><span class="rk">Ref</span><div class="rl"><div class="rn"><span class="nm"><b>${esc(r.name)}</b><small>${esc(r.note)}</small></span></div>` +
+        `<div class="rb"><i style="width:${Math.max(1.5, (r.v / max) * 72).toFixed(1)}%;background:${r.color}"></i><b style="color:${r.color}">~${r.v}%</b><em>human baseline</em></div></div></li>`;
+    }
+    const d = it.d, v = it.v;
+    return `<li data-m="${esc(d.id)}"><span class="rk">${it.i + 1}</span><div class="rl"><div class="rn">${nameCell(d)}</div>` +
+      `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${scope === 'overall' ? v.toFixed(1) : fmtScore(v)}</b><em>${priceLabel(d)}</em></div></div></li>`;
+  }).join('');
+  const sub = scope === 'overall' ? 'Weighted average of the seven scores (RE combined counts 1.5x). Models with a partial record are not ranked.'
+    : isBHH ? 'Blind hard (hand-rated cards, 1x) scaled to 60% against human baselines (~2% avg 120 IQ gamer with no experience, ~60% human expert with 100+ hrs).'
+    : isBH ? 'Blind hard (hand-rated cards, 1x). Includes ~2% average 120 IQ human gamer baseline; see Blind hard · vs Human for the ~60% expert scale.'
+    : scope === 're' ? 'Feedback on game proposals, especially balancing.' : 'Score out of 100.';
   const subFull = `${sub} ${topNote(rows.length, total)}`;
   const subset = rows.filter((d) => d.reNote);
   const foot = [subset.length ? reFootnote(subset) : null, LEGACY_MARK ? legacyFootnote(rows) : null].filter(Boolean).join(' ');
@@ -1407,6 +1512,17 @@ function tilesHTML(hidden) {
   const ubv = (d) => d.re_blind ?? d.reBlindOld;   // as in the released view: the older blind run stands in until a model is re-run
   const rv = vis.filter((d) => ubv(d) != null && d.re_released > 0).sort((a, b) => (ubv(a) - a.re_released) / a.re_released - (ubv(b) - b.re_released) / b.re_released).slice(0, 3);
   add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((ubv(d) - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
+  if (activeReMode() === 'v152') {
+    const bhTop = bestPerModel(vis.filter((d) => valOfPart(d, 're_blind_hard') != null).sort((a, b) => valOfPart(b, 're_blind_hard') - valOfPart(a, 're_blind_hard')))[0];
+    const bhTopV = bhTop ? valOfPart(bhTop, 're_blind_hard') : null;
+    const bhMax = Math.max(HUMAN_EXPERT_BLIND_HARD.v, bhTopV || 0);
+    const bhRows = [
+      `<li><span class="mn"><b style="color:${HUMAN_EXPERT_BLIND_HARD.color}">Human expert (100+ hrs)</b></span><i style="width:${((HUMAN_EXPERT_BLIND_HARD.v / bhMax) * 100).toFixed(1)}%;background:${HUMAN_EXPERT_BLIND_HARD.color}"></i><em>~60%</em></li>`,
+      ...(bhTop ? [`<li><span class="mn">${iconHTML(bhTop)}<b>${esc(modelEffort(bhTop))}</b></span><i style="width:${Math.max(4, (bhTopV / bhMax) * 100).toFixed(1)}%;background:${bhTop.tint}"></i><em>${fmtScore(bhTopV)}</em></li>`] : []),
+      `<li><span class="mn"><b style="color:${HUMAN_AVG_BLIND_HARD.color}">120 IQ avg gamer</b></span><i style="width:${Math.max(3, (HUMAN_AVG_BLIND_HARD.v / bhMax) * 100).toFixed(1)}%;background:${HUMAN_AVG_BLIND_HARD.color}"></i><em>~2%</em></li>`,
+    ].join('');
+    add('explorer/re/score/blind-hard-human', 'Blind hard vs human', 'AI vs ~2% avg gamer and ~60% expert', `<ol class="mini">${bhRows}</ol>`);
+  }
   const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
   const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
   add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(1)}`).join(' → ')}</em></li>`).join('')}</ol>`);
@@ -1449,7 +1565,9 @@ function buildCurrent() {
     case 'general': return { html: generalHTML(state.gmetric, state.asort, hidden) };
     case 'progress': return { html: progressHTML(hidden) };
     case 'overview': return overviewFig(hidden);
-    case 'explorer': return state.mode === 'score' ? (state.scope === 're' && state.reLook === 'board' ? reBoardFig(hidden) : scoresFig(state.scope, hidden))
+    case 'explorer': return state.mode === 'score' ? (state.scope === 're' && state.reLook === 'board' ? reBoardFig(hidden)
+      : state.scope === 're' && state.reView === 'blind-hard-human' ? reBlindHardHumanFig(hidden)
+      : scoresFig(state.scope, hidden))
       : state.mode === 'size' ? sizeFig(state.scope, hidden) : ppFig(state.scope, hidden);
     case 'profiles': return radarFig([...state.prof], hidden);
     case 'speed': return speedFig(state.metric, hidden);
@@ -1749,6 +1867,7 @@ const EXPORTS = [
   { name: 'scores-re-released', build: () => reSingleFig('released') },
   { name: 'scores-re-combined', build: () => reSingleFig('combined') },
   { name: 'scores-re-blind-hard', build: () => reSingleFig('blind-hard') },
+  { name: 'scores-re-blind-hard-human', build: () => reBlindHardHumanFig(NONE) },
   { name: 'scores-re-assisted-hard', build: () => reSingleFig('assisted-hard') },
   { name: 'scores-re-combined-hard', build: () => reSingleFig('combined-hard') },
   { name: 'scores-re-board', build: () => reBoardFig(NONE, true) },   // the opt-in board look, as an extra RE image
