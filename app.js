@@ -1509,20 +1509,37 @@ function buildCurrent() {
     default: return overviewFig(hidden);
   }
 }
+// controls toolbar: the explorer's score picker in groups, chart type with icons, the open-weights switch on the right
+const SCOPE_GROUPS = [[null, ['overall']], ['Coding', ['create', 'bugfix']], [null, ['gamefeel']], ['Creativity', ['ideas', 'visuals', 'audio']], [null, ['re']]];
+const SCOPE_BTN = { overall: 'Overall', create: 'Create', bugfix: 'Debugging', gamefeel: 'Gamefeel', ideas: 'Ideas', visuals: 'Visuals', audio: 'Audio', re: 'Gamefeel · RE' };
+const MODES = [['score', 'Scores', 'Scores, as columns'], ['p2p', 'Price', 'Price to performance'], ['size', 'Size', 'Size to performance (open-weight models)']];
+const MODE_ICON = {
+  score: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="8.5" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="9.5" rx="1"/><rect x="11.5" y="1.5" width="3" height="13" rx="1"/></svg>',
+  p2p: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13 7 7.5 14 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="2.5" cy="12.5" r="1.9"/><circle cx="7" cy="7.5" r="1.9"/><circle cx="13.5" cy="3.5" r="1.9"/><circle cx="11" cy="11.5" r="1.5" opacity=".45"/></svg>',
+  size: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="10" r="4"/><circle cx="12" cy="5" r="2.6" opacity=".55"/></svg>',
+};
+function subControlsHTML() {   // a second row inside the toolbar, only in the explorer's RE section
+  if (state.tab !== 'explorer' || state.scope !== 're') return '';
+  const board = state.mode === 'score' && state.reLook === 'board';
+  return `<div class="tb-sub">${board ? '' : `<span class="sub-g"><span class="seg-cap">RE score</span><span class="subtabs" role="group" aria-label="RE score view">${RE_VIEWS.map((v) =>
+    `<button type="button" data-review="${v}" class="${state.reView === v ? 'on' : ''}" aria-pressed="${state.reView === v}" title="${esc(RE_TIP[v])}">${RE_LABEL[v]}</button>`).join('')}</span></span>`}` +
+    (state.mode === 'score' ? `<span class="sub-g look"><span class="seg-cap">Look</span><span class="subtabs" role="group" aria-label="RE look">${[['classic', 'Classic', 'One RE score at a time, as columns'], ['board', 'Board', 'RE combined split into its five parts, with every part ranked']].map(([k, l, t]) =>
+      `<button type="button" data-relook="${k}" class="${state.reLook === k ? 'on' : ''}" aria-pressed="${state.reLook === k}" title="${t}">${l}</button>`).join('')}</span></span>` : '') + '</div>';
+}
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
       return '<span class="crumb">Pick a view</span><span class="hint">Click a tile to open it full width · ☰ lists every view</span>';
     case 'explorer':
-      return `<div class="seg">${SCOPES.map(([k, l]) => `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` +
-        `<div class="seg">${[['score', 'Scores'], ['p2p', 'Price to performance'], ['size', 'Size to performance']].map(([k, l]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>` +
-        (state.scope === 're' && !(state.mode === 'score' && state.reLook === 'board') ? `<span class="re-view-wrap"><span class="seg-cap">RE score</span><div class="seg seg-re" role="group" aria-label="RE score view">${RE_VIEWS.map((v) => `<button type="button" data-review="${v}" class="${state.reView === v ? 'on' : ''}" aria-pressed="${state.reView === v}" title="${esc(RE_TIP[v])}">${RE_LABEL[v]}</button>`).join('')}</div></span>` : '') +
-        (state.scope === 're' && state.mode === 'score' ? `<span class="re-view-wrap"><span class="seg-cap">Look</span><div class="seg" role="group" aria-label="RE look">${[['classic', 'Classic', 'One RE score at a time, as columns'], ['board', 'Board', 'RE combined split into its five parts, with every part ranked']].map(([k, l, t]) => `<button type="button" data-relook="${k}" class="${state.reLook === k ? 'on' : ''}" aria-pressed="${state.reLook === k}" title="${t}">${l}</button>`).join('')}</div></span>` : '');
+      // the score to show, grouped the way the benchmark is built (Coding and Creativity have two and three parts), then the chart type
+      return `<div class="scopes" role="group" aria-label="Score">${SCOPE_GROUPS.map(([cap, ks]) => `<div class="sg${cap ? ' cap' : ''}">${cap ? `<span class="sgc">${cap}</span>` : ''}<div class="sgb">${ks.map((k) =>
+        `<button type="button" data-scope="${k}" class="${state.scope === k ? 'on' : ''}" aria-pressed="${state.scope === k}" title="${esc(SCOPE_LABEL[k])}">${SCOPE_BTN[k]}</button>`).join('')}</div></div>`).join('')}</div>` +
+        `<div class="modes" role="group" aria-label="Chart type">${MODES.map(([k, l, t]) => `<button type="button" data-mode="${k}" class="${state.mode === k ? 'on' : ''}" aria-pressed="${state.mode === k}" title="${t}">${MODE_ICON[k]}<span>${l}</span></button>`).join('')}</div>`;
     case 'profiles':
       return DATA.filter((d) => d.complete).map((d) => `<button type="button" class="chip ${state.prof.has(d.id) ? 'on' : ''}" data-prof="${esc(d.id)}">${iconHTML(d)}${esc(d.model)} <span style="opacity:.6">${esc(d.effort)}</span></button>`).join('') +
         '<button type="button" class="chip plain" data-act="top3">reset to top 3</button>';
     case 'speed':
-      return `<div class="seg"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}">Minutes per task</button></div>`;
+      return `<div class="modes" role="group" aria-label="Speed measure"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}" aria-pressed="${state.metric === 'tps'}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}" aria-pressed="${state.metric === 'min'}">Minutes per task</button></div>`;
     case 'ledger':
       return '<span class="hint">Click a column heading to sort, click again to reverse</span>';
     case 'glance': case 'rehelp': case 'released': case 'effort': case 'general': case 'progress':
@@ -1552,7 +1569,11 @@ function render() {
   // the RE view toggle applies to the explorer's RE section only; every other tab and view uses combined
   RE_VIEW = state.tab === 'explorer' && state.scope === 're' ? state.reView : 'combined';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
-  $('#controls').innerHTML = `<div class="seg seg-open" role="group" aria-label="Which models"><button type="button" data-open-only="0" class="${state.openOnly ? '' : 'on'}">All models</button><button type="button" data-open-only="1" class="${state.openOnly ? 'on' : ''}">Open weights</button></div>` + controlsHTML();
+  $('#controls').className = 'controls tb';
+  $('#controls').innerHTML = `<div class="tb-main">${controlsHTML()}</div>` +
+    `<div class="tb-side"><button type="button" class="oswitch" role="switch" aria-checked="${state.openOnly}" data-open-only="${state.openOnly ? '0' : '1'}" title="Show only models whose weights are published"><span>Open weights only</span><span class="knob" aria-hidden="true"></span></button></div>` + subControlsHTML();
+  const sc = $('#controls .scopes'), on = sc && sc.querySelector('button.on');   // on a phone the score row scrolls: keep the chosen one in view
+  if (on && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = on.offsetLeft - (sc.clientWidth - on.offsetWidth) / 2;
   const f = buildCurrent();
   const sentence = (t) => { const x = t.toLowerCase().replace(/\bre\b/g, 'RE').replace(/\bgci\b/g, 'GCI'); return x[0].toUpperCase() + x.slice(1); };
   const fi = FRAME_INFO, y0 = fi ? fi.y : 0;

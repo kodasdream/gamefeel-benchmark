@@ -312,3 +312,68 @@ ol.rank .rn, ol.rank .rn .nm { min-width: 0; overflow: hidden; }
 .pairkey .k-dash { width: 12px; height: 14px; border-radius: 3px 3px 0 0; border: 1.6px dashed var(--ink-soft); border-bottom: 0; box-sizing: border-box; }
 .pairkey .k-mark { width: 16px; height: 3px; border-radius: 2px; background: var(--ink); }
 .pairkey .k-chip { width: 22px; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--good-bg) 50%, var(--bad-bg) 50%); }
+
+/* ---------- controls toolbar (2026-11-20 redesign): one panel, grouped score picker, chart type with icons, a switch for open weights ---------- */
+.controls.tb { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px 20px; margin: 14px 20px 4px; padding: 10px 12px 10px 10px;
+  background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 1px 2px rgba(27,36,52,.04), 0 6px 18px rgba(88,106,140,.07); }
+.tb-main { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; min-width: 0; }
+.tb-side { display: flex; align-items: center; gap: 12px; justify-self: end; }
+.tb-sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; border-top: 1px solid var(--line); margin: 0 -12px -10px -10px; padding: 9px 12px 9px 14px; background: var(--bg2); border-radius: 0 0 16px 16px; }
+.scopes { position: relative; display: flex; align-items: flex-end; min-width: 0; }
+.sg { display: grid; gap: 3px; padding: 0 5px; }
+.sg + .sg { border-left: 1px solid var(--line); }
+.sg:first-child { padding-left: 0; }
+.sgc { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); padding-left: 11px; }
+.sgc::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.sgb { display: flex; gap: 2px; }
+.scopes button { border: 0; background: transparent; border-radius: 10px; padding: 7px 11px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer; white-space: nowrap; transition: background .12s, color .12s; }
+.scopes button:hover { background: var(--track); color: var(--ink); }
+.scopes button.on { background: var(--ink); color: #fff; }
+.modes { display: inline-flex; gap: 2px; padding: 3px; background: var(--track); border-radius: 12px; }
+.modes button { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; border-radius: 9px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer; white-space: nowrap; transition: background .12s, color .12s; }
+.modes button svg { width: 15px; height: 15px; fill: currentColor; flex: none; }
+.modes button:hover { color: var(--ink); }
+.modes button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(27,36,52,.14); }
+.oswitch { display: inline-flex; align-items: center; gap: 10px; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer; padding: 6px 2px; white-space: nowrap; }
+.oswitch .knob { position: relative; flex: none; width: 36px; height: 21px; border-radius: 999px; background: #d5dceb; transition: background .15s; }
+.oswitch .knob::after { content: ''; position: absolute; top: 2.5px; left: 2.5px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(27,36,52,.28); transition: transform .15s; }
+.oswitch[aria-checked="true"] { color: var(--ink); }
+.oswitch[aria-checked="true"] .knob { background: var(--ink); }
+.oswitch[aria-checked="true"] .knob::after { transform: translateX(15px); }
+.sub-g { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.sub-g .seg-cap { white-space: nowrap; }
+.sub-g.look { margin-left: auto; }
+.subtabs { display: inline-flex; gap: 2px; min-width: 0; }
+.subtabs button { border: 0; background: transparent; border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.subtabs button:hover { color: var(--ink); background: rgba(27,36,52,.05); }
+.subtabs button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(27,36,52,.12); }
+.controls.tb button:focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; }
+.controls.tb .crumb, .controls.tb .hint { align-self: center; }
+@media (max-width: 1100px) { .controls.tb { grid-template-columns: minmax(0, 1fr); } .tb-side { justify-self: start; } }
+@media (max-width: 700px) {
+  .controls.tb { margin: 10px 12px 2px; padding: 8px; gap: 8px; }
+  .tb-main { flex-direction: column; align-items: stretch; gap: 8px; }
+  .tb-main > * { max-width: 100%; min-width: 0; }
+  .scopes { overflow-x: auto; scrollbar-width: none; width: 100%; }
+  .scopes::-webkit-scrollbar { display: none; }
+  .sgc { display: none; }
+  .sg + .sg { border-left: 0; }
+  .sg { padding: 0 1px; }
+  .modes { align-self: flex-start; }
+  .tb-sub { margin: 0 -8px -8px; padding: 8px; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .sub-g { max-width: 100%; }
+  .sub-g.look { margin-left: 0; }
+  .subtabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+}
+
+/* the same system inside the views: sort and show switches are a quiet track with the chosen option raised in white (secondary
+   choices); only the main score picker in the toolbar uses the dark pill */
+.sortbar { gap: 8px 14px; margin: 2px 0 12px; }
+.sortbar .seg, .sortgrp .seg { background: var(--track); border: 0; border-radius: 12px; padding: 3px; gap: 2px; }
+.sortbar .seg button { border-radius: 9px; padding: 5px 11px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); background: transparent; box-shadow: none; }
+.sortbar .seg button:hover { color: var(--ink); }
+.sortbar .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(27,36,52,.14); }
+.sortgrp { display: inline-flex; align-items: center; gap: 8px; }
+.sortbar .seg-cap { font-size: 10px; letter-spacing: .16em; }
+.controls.tb .modes button.on { background: #fff; }
+@media (max-width: 700px) { #stage .sortbar .seg { flex-wrap: wrap; border-radius: 12px; } #stage .sortbar .seg button { border-radius: 9px; } }
