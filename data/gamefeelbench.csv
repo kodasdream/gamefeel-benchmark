@@ -53,6 +53,6 @@ Qwen-4-Max,XHigh,alibaba,Alibaba Qwen,0.47,sub,1M,,,70,,,,,,,2,5.64,16.58,4.76,,
 Hy4-Flash,High,tencent,Tencent Hunyuan,0.01,api,1M,,,,,,,,,,,,7.57,3.41473,,,,,,,,,,,v1.5.1,5.48,1.79,0.88,7.23
 gpt-6.2-astra,Max,openai,OpenAI,,sub,1M,,,,,,,,,,8.98,24.63,,14.1704,,,,,"Semi-private subset of the RE test, 765 tasks",,,,2.14,8.17,,,,,
 gpt-6.2-astra,High,openai,OpenAI,,sub,1M,,,,,,,,,,8.32,26.07,,14.4385,,,,,"Semi-private subset of the RE test, 765 tasks",,,,2.34,9.07,,,,,
-Gemini-4-Neon,XHigh,google,Google DeepMind,,sub,1M,37,1,400,64,73,48,42,56,38,9.84,36.81,42.3,20.0015,46.8,,,,,,,,2.17,11.45,,,,,
+Gemini-4-Neon,XHigh,google,Google DeepMind,1.33,sub,1M,37,1,400,64,73,48,42,56,38,9.84,36.81,42.3,20.0015,46.8,,,,,,,,2.17,11.45,,,,,
 Gemini-4-Hydrogen,XHigh,google,Google DeepMind,,sub,1M,,,,,,,,,,10.49,14.25,36.4,13.5662,,,,,,,,,2.38,3.6,,,,,
-Gemini-4-Neon,Medium,google,Google DeepMind,,sub,1M,32,1,400,56,61,48,42,51,32,22.7,38.53,40.24,25.4223,43.8,,,,,,,,4.88,11.16,,,,,
+Gemini-4-Neon,Medium,google,Google DeepMind,0.54,sub,1M,32,1,400,56,61,48,42,51,32,22.7,38.53,40.24,25.4223,43.8,,,,,,,,4.88,11.16,,,,,

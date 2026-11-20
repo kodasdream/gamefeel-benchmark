@@ -743,7 +743,7 @@ function ppFig(scope, hidden, highlight = false) {
     if (m.foot == null) notes.push(`The blue line does not reach the price of ${m.q.model}, so its gap to the line is not drawn.`);
     if (m.priceAt == null) notes.push(`The blue line does not reach a score of ${fmtScore(m.sq)}, so the price ${m.q.model} would be expected at is not drawn.`);
   }
-  if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above the blue line at its price (the bracket), and the line across at its score, from its price to the price the blue line expects. The length of that line is how much cheaper it is.${styleNote(measures)}`);
+  if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above or below the blue line at its price (the bracket), and the line across at its score, from its price to the price the blue line expects. The length of that line is how much cheaper or pricier it is.${styleNote(measures)}`);
   if (unpriced.length) notes.push(`Not shown, no price given: ${namesOf(unpriced)}.`);
   const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
   const B = 1530, H = 1700 + 36 * Math.max(0, noteLines.length - 1);
@@ -783,8 +783,8 @@ function ppFig(scope, hidden, highlight = false) {
   const dotBoxes = rows.map((d) => ({ x0: X(d.px) - 32, x1: X(d.px) + 32, y0: Y(scoreOf(d, scope)) - 32, y1: Y(scoreOf(d, scope)) + 32 }));
   const items = measures.map((m) => ({
     bx: X(m.q.px), yq: Y(m.sq), yFoot: m.foot != null ? Y(m.foot) : null, xPrice: m.priceAt != null ? X(m.priceAt) : null,
-    bracketText: m.foot != null ? `${m.q.model}: +${(m.sq - m.foot).toFixed(1)} ahead for its cost` : '',
-    lineText: m.priceAt != null ? `${m.q.model}: $${m.priceAt.toFixed(2)} expected · ${(m.priceAt / m.q.price).toFixed(1)}× cheaper` : '',
+    bracketText: m.foot != null ? `${m.q.model}: ${signed(m.sq - m.foot)} ${m.sq >= m.foot ? 'ahead' : 'behind'} for its cost` : '',
+    lineText: m.priceAt != null ? `${m.q.model}: $${m.priceAt.toFixed(2)} expected · ${timesText(m.priceAt / m.q.price, 'cheaper', 'pricier')}` : '',
   }));
   const placed = placePurpleLabels(items, dotBoxes, { L, R, T, B });
   const marks = placed.boxes;   // the purple marks; point labels keep clear of them
@@ -871,7 +871,7 @@ function sizeFig(scope, hidden, highlight = false) {
     if (m.foot == null) notes.push(`The blue line does not reach ${m.q.size} GB, so it cannot measure ${m.q.model} at its size.`);
     if (m.priceAt == null) notes.push(`The blue line does not reach a score of ${fmtScore(m.sq)}, so the size ${m.q.model} would be expected at is not drawn.`);
   }
-  if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above the blue line at its size (the bracket), and the line across at its score, from its size to the size the line expects.${styleNote(measures)}`);
+  if (measures.length) notes.push(`Purple: how far each Qwen-4 model sits above or below the blue line at its size (the bracket), and the line across at its score, from its size to the size the line expects.${styleNote(measures)}`);
   const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
   const B = 1530, H = B + 170 + 36 * noteLines.length, T = TOP + 30, L = 170, R = WP - 80;
   const xs = rows.map((d) => d.size), ys = rows.map((d) => scoreOf(d, scope));
@@ -908,8 +908,8 @@ function sizeFig(scope, hidden, highlight = false) {
   const dotBoxes = rows.map((d) => ({ x0: X(d.px) - 32, x1: X(d.px) + 32, y0: Y(scoreOf(d, scope)) - 32, y1: Y(scoreOf(d, scope)) + 32 }));
   const items = measures.map((m) => ({
     bx: X(m.q.px), yq: Y(m.sq), yFoot: m.foot != null ? Y(m.foot) : null, xPrice: m.priceAt != null ? X(m.priceAt) : null,
-    bracketText: m.foot != null ? `${m.q.model}: +${(m.sq - m.foot).toFixed(1)} ahead for its size` : '',
-    lineText: m.priceAt != null ? `${m.q.model}: ${Math.round(m.priceAt)} GB expected · ${(m.priceAt / m.q.size).toFixed(1)}× smaller` : '',
+    bracketText: m.foot != null ? `${m.q.model}: ${signed(m.sq - m.foot)} ${m.sq >= m.foot ? 'ahead' : 'behind'} for its size` : '',
+    lineText: m.priceAt != null ? `${m.q.model}: ${Math.round(m.priceAt)} GB expected · ${timesText(m.priceAt / m.q.size, 'smaller', 'larger')}` : '',
   }));
   const placed = placePurpleLabels(items, dotBoxes, { L, R, T, B });
   const marks = placed.boxes;   // point labels keep clear of the purple marks
@@ -1223,6 +1223,8 @@ function pairBars(rows, o) {
 // the key above a paired-column chart: what the solid column, the dashed outline and (optionally) the ink bar are
 const pairKey = (main, ref, marker) => `<div class="pairkey"><span><i class="k-solid"></i>${esc(main)}</span><span><i class="k-dash"></i>${esc(ref)}</span>${marker ? `<span><i class="k-mark"></i>${esc(marker)}</span>` : ''}<span><i class="k-chip"></i>difference</span></div>`;
 const signed = (v, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
+// expected over actual as "2.6× cheaper", or below 1 as "13.3× pricier": the highlight's line across can point either way
+const timesText = (r, less, more) => r >= 1 ? `${r.toFixed(1)}× ${less}` : `${(1 / r).toFixed(1)}× ${more}`;
 
 /* ---------- blind vs assisted RE ---------- */
 function reHelpHTML(sort, hidden) {
