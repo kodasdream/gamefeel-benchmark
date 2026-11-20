@@ -62,7 +62,7 @@ async function loadData() {
       reNote: r.re_test || '', aaIndex: num(r.aa_index || ''), gci: num(r.gci || ''), firstSeen: r.release_date || '',   // set only on a result from the semi-private subset of the RE test
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
       re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_released: num(r.re_released), re_combined: num(r.re_combined),
-      re_blind_hard: num(r.re_blind_hard ?? ''), re_assisted_hard: num(r.re_assisted_hard ?? ''), reLegacy: r.re_legacy || '', reBlindOld: num(r.re_blind_legacy ?? ''),
+      re_blind_hard: num(r.re_blind_hard ?? ''), re_assisted_hard: num(r.re_assisted_hard ?? ''), reLegacy: r.re_legacy || '', reBlindOld: num(r.re_blind_legacy ?? ''), reAssistedOld: num(r.re_assisted_legacy ?? ''),
       reBlindHardOld: num(r.re_blind_hard_legacy ?? ''), reAssistedHardOld: num(r.re_assisted_hard_legacy ?? ''),
     };
   });
@@ -152,11 +152,16 @@ const combinedHardOf = (d) => {
   if (bh == null) return ah;
   return 0.66 * bh + 0.34 * ah;
 };
-const valOfPart = (d, key) => (key === 're_blind_hard' ? (d.re_blind_hard ?? d.reBlindHardOld)
+// blind and assisted: a model not re-run on v1.5.2 shows its v1.5.1 run, marked † outdated (user: don't exclude old RE scores anywhere)
+const valOfPart = (d, key) => (key === 're_blind' ? (d.re_blind ?? d.reBlindOld)
+  : key === 're_assisted' ? (d.re_assisted ?? d.reAssistedOld)
+  : key === 're_blind_hard' ? (d.re_blind_hard ?? d.reBlindHardOld)
   : key === 're_assisted_hard' ? (d.re_assisted_hard ?? d.reAssistedHardOld)
   : key === 're_combined_hard' ? combinedHardOf(d)
   : d[key]);
 const isPartLegacy = (d, key) => (key === 're_combined' ? Boolean(d.reLegacy)
+  : key === 're_blind' ? (d.re_blind == null && d.reBlindOld != null)
+  : key === 're_assisted' ? (d.re_assisted == null && d.reAssistedOld != null)
   : key === 're_blind_hard' ? (d.re_blind_hard == null && d.reBlindHardOld != null)
   : key === 're_assisted_hard' ? (d.re_assisted_hard == null && d.reAssistedHardOld != null)
   : key === 're_combined_hard' ? ((d.re_blind_hard == null && d.reBlindHardOld != null) || (d.re_assisted_hard == null && d.reAssistedHardOld != null))
@@ -165,7 +170,7 @@ let RE_VIEW = 'combined';
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
   : scope === 're' ? (valOfPart(d, RE_FIELD[RE_VIEW]) ?? null) : (d[scope] ?? null));
 const scopeLegacyKey = (scope) => (scope === 'overall' ? 're_combined'
-  : scope === 're' && (RE_VIEW === 'combined' || RE_VIEW.endsWith('-hard')) ? RE_FIELD[RE_VIEW]
+  : scope === 're' ? RE_FIELD[RE_VIEW]
   : null);
 // One column per model: keep the best-scoring reasoning effort. Callers pass rows sorted best-first.
 const TOP_N = 35;   // score charts show the top 35 models, each once at its best reasoning effort
@@ -180,8 +185,9 @@ const shortName = (d) => d.model + (d.reNote ? '*' : '') + (LEGACY_MARK && isPar
 const withLegacy = (on, fn) => { const k = LEGACY_MARK; LEGACY_MARK = on === true ? 're_combined' : (on || null); try { return fn(); } finally { LEGACY_MARK = k; } };
 const legacyFootnote = (rows, key = LEGACY_MARK || 're_combined') => {
   if (!rows.some((d) => isPartLegacy(d, key))) return null;
-  if (key === 're_blind_hard' || key === 're_assisted_hard' || key === 're_combined_hard') return '† Recalculated from the model\'s v1.5.1 run (human-rated cards only, 1x), until it is re-run on v1.5.2.';
-  return '† Estimated on v1.5.2 from the model\'s older v1.5.1 RE run (calibrated per part, never extrapolated from released games alone), until re-run.';
+  if (key === 're_blind_hard' || key === 're_assisted_hard' || key === 're_combined_hard') return '† Outdated: recalculated from the model\'s v1.5.1 run (human-rated cards only, 1x), until it is re-run on v1.5.2.';
+  if (key === 're_blind' || key === 're_assisted') return '† Outdated: the model\'s v1.5.1 run (same games, older handoff wording), until it is re-run on v1.5.2.';
+  return '† Outdated: estimated on v1.5.2 from the model\'s older v1.5.1 RE run (calibrated per part, never extrapolated from released games alone), until re-run.';
 };
 const modelEffort = (d) => [d.model, d.effort].filter(Boolean).join(' · ');
 const namesOf = (rows) => [...new Set(rows.map((d) => d.model))].join(', ');
@@ -446,7 +452,7 @@ function reStackedFig() {
     let body = `<text x="64" y="26" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
     body += `<text x="64" y="60" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
     const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${label} ${fmtScore(v)} · ${priceText(d)}${key === 're_combined' ? ` · ${reParts(d)}` : ''}` }; });
-    const legKey = (key === 're_combined' || key === 're_blind_hard' || key === 're_assisted_hard') ? key : null;
+    const legKey = key;   // every RE part can carry an outdated v1.5.1 score
     const chart = withLegacy(legKey, () => columnChart(items, { top: 80, ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` }));
     return { body: body + chart.body, H: chart.H };
   });
@@ -490,7 +496,7 @@ function partPanel(k, label, w, x, y, pw, hidden) {
   s += `<text x="${x.toFixed(1)}" y="${y + 62}" font-size="34" font-weight="800" fill="${C.ink}">${esc(label.toUpperCase())}</text>`;
   s += `<text x="${(x + pw).toFixed(1)}" y="${y + 62}" font-size="23" font-weight="800" text-anchor="end" fill="${C.soft}">${w} of 13</text>`;
   s += `<text x="${x.toFixed(1)}" y="${y + 98}" font-size="21" font-weight="600" fill="${C.faint}">${esc(PART_DESC[k])}</text>`;
-  const legKey = (k === 're_blind_hard' || k === 're_assisted_hard') ? k : null;
+  const legKey = k;
   withLegacy(legKey, () => {
     rows.forEach((d, i) => {
       const ry = y0 + i * rowH, v = valOfPart(d, k);
@@ -560,7 +566,7 @@ function reBoardFig(hidden = NONE, wide = false) {
 }
 
 /* ---------- figure: one RE section on its own — exported separately as scores-re-blind / -assisted / -combined ---------- */
-function reSingleFig(view) { return withLegacy((view === 'combined' || view.endsWith('-hard')) ? RE_FIELD[view] : null, () => reSingleFigInner(view)); }
+function reSingleFig(view) { return withLegacy(RE_FIELD[view], () => reSingleFigInner(view)); }
 function reSingleFigInner(view) {
   const key = RE_FIELD[view];
   const rows = reRows(key);
@@ -1143,10 +1149,11 @@ function glanceInner(sort, hidden) {
    red when not. Under the axis: the lab logo, the name (wrapped) and the reasoning effort. */
 function pairBars(rows, o) {
   const n = rows.length, ph = isPhone();
-  const W = Math.max(ph ? 860 : 1000, 60 + n * (n > 12 ? 54 : 76)), L = 46, R = W - 12, T = 50, B = T + 300;   // long lists get narrower columns, so the text keeps its size
+  const W = Math.max(ph ? 860 : 1000, 60 + n * (n > 12 ? 54 : 76)), R = W - 12, T = 50, B = T + 300;
+  let L = 46;   // long lists get narrower columns, so the text keeps its size
   const top = Math.max(10, Math.ceil(Math.max(0, ...rows.flatMap((d) => [o.main(d), o.ref(d)])) / 5) * 5);   // the scale ends just above the tallest column
   const Y = (v) => B - (Math.max(0, v) / top) * (B - T);
-  const pitch = (R - L) / Math.max(n, 1), bw = Math.min(pitch * 0.66, 80);
+  let pitch = (R - L) / Math.max(n, 1), bw = Math.min(pitch * 0.66, 80);
   const wrap = (t, maxW) => {   // the model name in lines no wider than maxW, broken at spaces and hyphens
     const parts = t.replace(/-/g, '- ').split(' ').filter(Boolean), out = [];
     let cur = '';
@@ -1157,9 +1164,17 @@ function pairBars(rows, o) {
     if (cur) out.push(cur);
     return out;
   };
-  const names = rows.map((d) => wrap(shortName(d) + (o.suffix ? o.suffix(d) : ''), pitch - 6));
+  // names: wrapped under wide columns; past 12 columns, one line at an angle (as on the main charts), so no name breaks into fragments
+  const label = (d) => shortName(d) + (o.suffix ? o.suffix(d) : '');
+  const tilt = n > 12, ANG = 40, ca = Math.cos((ANG * Math.PI) / 180), sa = Math.sin((ANG * Math.PI) / 180);
+  const fullW = (d) => textW(`${label(d)}  ${d.effort || ''}`, 12.5, 800);
+  const names = rows.map((d) => (tilt ? [label(d)] : wrap(label(d), pitch - 6)));
   const nameLines = Math.max(1, ...names.map((l) => l.length));
-  const H = B + 36 + nameLines * 15 + 20;
+  const H = tilt ? B + 40 + Math.max(...rows.map(fullW)) * sa + 24 : B + 36 + nameLines * 15 + 20;
+  if (tilt) {   // room on the left for the first tilted names, so none is pushed onto its neighbour
+    for (let k = 0; k < 3; k++) L = Math.max(46, ...rows.map((d, i) => fullW(d) * ca + 8 - ((R - L) / n) * (i + 0.5)));
+    pitch = (R - L) / n; bw = Math.min(pitch * 0.66, 80);
+  }
   const col = (x, y, w, h, r) => (h <= 0 ? '' : `M${x.toFixed(1)} ${(y + h).toFixed(1)}V${(y + Math.min(r, h)).toFixed(1)}Q${x.toFixed(1)} ${y.toFixed(1)} ${(x + r).toFixed(1)} ${y.toFixed(1)}H${(x + w - r).toFixed(1)}Q${(x + w).toFixed(1)} ${y.toFixed(1)} ${(x + w).toFixed(1)} ${(y + Math.min(r, h)).toFixed(1)}V${(y + h).toFixed(1)}Z`);
   let s = '';
   for (let t = 0; t <= top; t += top > 50 ? 20 : top > 25 ? 10 : 5) s += `<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${L - 8}" y="${Y(t) + 4}" class="ax" text-anchor="end">${t}</text>`;
@@ -1177,16 +1192,29 @@ function pairBars(rows, o) {
     if (vm > vr && y0 - yr > 2) s += `<line x1="${(x + 3).toFixed(1)}" x2="${(x + bw - 3).toFixed(1)}" y1="${yr.toFixed(1)}" y2="${yr.toFixed(1)}" stroke="#fff" stroke-width="2.2" stroke-dasharray="5 4"/>`;
     const mk = o.marker ? o.marker(d) : null;   // optional third value: a short ink bar across the column
     if (mk != null) s += `<line x1="${(x - 5).toFixed(1)}" x2="${(x + bw + 5).toFixed(1)}" y1="${Y(mk).toFixed(1)}" y2="${Y(mk).toFixed(1)}" stroke="var(--ink)" stroke-opacity=".8" stroke-width="2.2" stroke-linecap="round"/>`;
-    const yv = Math.min(ym, mk != null ? Y(mk) : ym) - 7;
-    s += `<text x="${cx.toFixed(1)}" y="${yv.toFixed(1)}" text-anchor="middle" style="font-size:13.5px;font-weight:800;fill:var(--ink);stroke:var(--card);stroke-width:4px;paint-order:stroke;stroke-linejoin:round;font-variant-numeric:tabular-nums">${esc(o.value(d))}</text>`;
-    const cw = Math.max(34, textW(chip.text, 11.5, 800) + 14), cyTop = Math.min(yv - 14, yr - 6) - 20;
+    // the value: inside the top of the column when it is tall enough, else above it, and above the dashed cap when that cap is close
+    const hm = y0 - ym, inside = hm >= 26 && (mk == null || Y(mk) - ym > 22) && !(vm > vr && yr - ym < 24);   // not where the white reference line crosses it
+    let yv;
+    if (inside) {
+      yv = ym + 17;
+      s += `<text x="${cx.toFixed(1)}" y="${yv.toFixed(1)}" text-anchor="middle" style="font-size:13px;font-weight:800;fill:#fff;font-variant-numeric:tabular-nums">${esc(o.value(d))}</text>`;
+    } else {
+      yv = (vr > vm && ym - yr < 22 ? yr : Math.min(ym, mk != null ? Y(mk) : ym)) - 7;
+      s += `<text x="${cx.toFixed(1)}" y="${yv.toFixed(1)}" text-anchor="middle" style="font-size:13.5px;font-weight:800;fill:var(--ink);stroke:var(--card);stroke-width:4px;paint-order:stroke;stroke-linejoin:round;font-variant-numeric:tabular-nums">${esc(o.value(d))}</text>`;
+    }
+    const cw = Math.max(34, textW(chip.text, 11.5, 800) + 14), cyTop = Math.min(inside ? ym : yv - 14, yr) - 26;
     s += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${cyTop.toFixed(1)}" width="${cw.toFixed(1)}" height="19" rx="9.5" fill="${tone[0]}"/>`;
     s += `<text x="${cx.toFixed(1)}" y="${(cyTop + 13.5).toFixed(1)}" text-anchor="middle" style="font-size:11.5px;font-weight:800;fill:${tone[1]};font-variant-numeric:tabular-nums">${esc(chip.text)}</text>`;
     if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(cyTop - 6).toFixed(1)}" text-anchor="middle" style="font-size:10.5px;font-weight:800;letter-spacing:.5px;fill:${d.tint}">NEW!</text>`;
     if (isWarn(d)) s += `<g transform="translate(${(cx + cw / 2 + 2).toFixed(1)} ${(cyTop + 18).toFixed(1)}) scale(.5)">${warnSvg(12, 0, 34)}</g>`;
     s += iconSvg(d, (cx - 9).toFixed(1), B + 9, 18);
-    names[i].forEach((ln, k) => { s += `<text x="${cx.toFixed(1)}" y="${B + 44 + k * 15}" text-anchor="middle" style="font-size:12.5px;font-weight:800;fill:var(--ink)">${esc(ln)}</text>`; });
-    s += `<text x="${cx.toFixed(1)}" y="${B + 44 + names[i].length * 15 + 2}" text-anchor="middle" class="ax">${esc(d.effort || '')}</text></g>`;
+    if (tilt) {
+      const nx = Math.max(cx + 4, 8 + fullW(d) * ca);   // a long name stays inside the chart
+      s += `<text transform="translate(${nx.toFixed(1)} ${B + 40}) rotate(-${ANG})" text-anchor="end" style="font-size:12.5px;font-weight:800;fill:var(--ink)">${esc(label(d))}<tspan dx="6" style="font-weight:600;fill:var(--ink-faint)">${esc(d.effort || '')}</tspan></text></g>`;
+    } else {
+      names[i].forEach((ln, k) => { s += `<text x="${cx.toFixed(1)}" y="${B + 44 + k * 15}" text-anchor="middle" style="font-size:12.5px;font-weight:800;fill:var(--ink)">${esc(ln)}</text>`; });
+      s += `<text x="${cx.toFixed(1)}" y="${B + 44 + names[i].length * 15 + 2}" text-anchor="middle" class="ax">${esc(d.effort || '')}</text></g>`;
+    }
   });
   s += `<line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="var(--ink)" stroke-opacity=".25" stroke-width="1.5"/>`;
   const svg = `<svg class="hsvg pairs" viewBox="0 0 ${W} ${H}"${ph ? ` style="min-width:${W * 0.86}px"` : ''}>${s}</svg>`;
@@ -1198,19 +1226,23 @@ const signed = (v, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs
 
 /* ---------- blind vs assisted RE ---------- */
 function reHelpHTML(sort, hidden) {
-  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_assisted != null);
-  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? d.re_assisted - d.re_blind : k === 'model' ? d.model : d[k]));
-  const opts = [['re_combined', 'Combined'], ['gain', 'Gain from examples'], ['re_blind', 'Blind'], ['re_assisted', 'Assisted'], ['model', 'Name']];
+  // like the released view: solid = blind (no examples), dashed outline = assisted (after 39 rated examples), which usually rises above it;
+  // the chip is what the examples add. A model not re-run on v1.5.2 shows its v1.5.1 run for either part, marked † outdated.
+  const B = (d) => valOfPart(d, 're_blind'), A = (d) => valOfPart(d, 're_assisted');
+  const out = (d) => isPartLegacy(d, 're_blind') || isPartLegacy(d, 're_assisted');
+  const base = DATA.filter((d) => !hidden.has(d.id) && B(d) != null && A(d) != null);
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? A(d) - B(d) : k === 'model' ? d.model : k === 're_blind' ? B(d) : k === 're_assisted' ? A(d) : d[k]));
+  const opts = [['gain', 'Gain from examples'], ['re_assisted', 'Assisted'], ['re_blind', 'Blind'], ['re_combined', 'Combined'], ['model', 'Name']];
   const chart = rows.length ? pairBars(rows, {
-    main: (d) => d.re_assisted, ref: (d) => d.re_blind, marker: (d) => d.re_combined, value: (d) => fmtScore(d.re_assisted),
-    chip: (d) => { const g = d.re_assisted - d.re_blind; return { text: signed(g), tone: g > 0 ? 'good' : g < 0 ? 'bad' : '' }; },
-    tip: (d) => `${modelEffort(d)} · blind ${fmtScore(d.re_blind)} · assisted ${fmtScore(d.re_assisted)} · combined ${fmtScore(d.re_combined)}`,
+    main: B, ref: A, value: (d) => fmtScore(B(d)), suffix: (d) => (out(d) ? '†' : ''),
+    chip: (d) => { const g = A(d) - B(d); return { text: signed(g), tone: g > 0 ? 'good' : g < 0 ? 'bad' : '' }; },
+    tip: (d) => `${modelEffort(d)} · blind ${fmtScore(B(d))}${isPartLegacy(d, 're_blind') ? ' (outdated v1.5.1)' : ''} · assisted ${fmtScore(A(d))}${isPartLegacy(d, 're_assisted') ? ' (outdated v1.5.1)' : ''} · RE combined ${fmtScore(d.re_combined)}`,
   }) : '<p class="sub">No model with both scores is shown.</p>';
   return card('Blind vs assisted RE: how much do examples help?',
     'The same RE test, run twice: blind, and again after the model studies 39 rated examples. The chip is what the examples add, in points.',
     `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
-    pairKey('Assisted (after 39 rated examples)', 'Blind (no examples)', 'RE combined') + chart,
-    `Only the ${rows.length} entries with an assisted run so far. Every reasoning effort is its own column.`);
+    pairKey('Blind (no examples)', 'Assisted (after 39 rated examples)') + chart,
+    `Only the ${rows.length} entries with both runs; every reasoning effort is its own column.${rows.some(out) ? ' † Outdated: a score from the model\'s v1.5.1 run (same games, older handoff wording), until it is re-run on v1.5.2.' : ''}`);
 }
 
 /* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
@@ -1218,7 +1250,7 @@ function releasedHTML(sort, hidden, mode = 'pts') {
   // solid = RE blind on the benchmark's unreleased games, dashed outline = RE blind on released games;
   // the chip says how much weaker the unreleased score is: points (unreleased − released) or percent of the released score
   // unreleased = the v1.5.2 blind score, or for a model not re-run yet its v1.5.1 blind run (same games, older handoff wording), marked †
-  const ub = (d) => d.re_blind ?? d.reBlindOld, old = (d) => d.re_blind == null && d.reBlindOld != null;
+  const ub = (d) => valOfPart(d, 're_blind'), old = (d) => isPartLegacy(d, 're_blind');
   const base = DATA.filter((d) => !hidden.has(d.id) && ub(d) != null && d.re_released != null);
   const pct = mode === 'pct';
   const dropPts = (d) => ub(d) - d.re_released;                                       // negative = weaker on unreleased
@@ -1240,7 +1272,7 @@ function releasedHTML(sort, hidden, mode = 'pts') {
     `Both runs are blind. The chip is how much weaker the score on the benchmark's own unreleased games is than on released commercial games (Balatro, Slay the Spire, World of Warcraft and others)${pct ? ', as a percent of the released score' : ', in points'}.`,
     `<div class="sortbar"><span class="sortgrp"><span class="seg-cap">Show</span>${modeSeg}</span><span class="sortgrp"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></span></div>` +
     pairKey('Unreleased games', 'Released games') + chart,
-    `A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own column.${base.some(old) ? ' † Unreleased score from the model\'s v1.5.1 blind run (same games; v1.5.2 only rewords the handoff), until it is re-run.' : ''} On average the unreleased score is ${signed(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
+    `A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own column.${base.some(old) ? ' † Outdated: unreleased score from the model\'s v1.5.1 blind run (same games, older handoff wording), until it is re-run.' : ''} On average the unreleased score is ${signed(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
 }
 
 /* ---------- is more effort worth it: each model's effort levels as one line ---------- */
@@ -1307,7 +1339,7 @@ function generalHTML(metric, sort, hidden) {
   base.forEach((d) => { d._exp = fit.a + fit.b * d.aaIndex; d._gap = val(d) - d._exp; d._val = val(d); });
   const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'model' ? d.model : k === 'gap' ? d._gap : k === 'aa' ? d.aaIndex : d._val));
   const chart = pairBars(rows, {
-    main: (d) => d._val, ref: (d) => d._exp, value: (d) => fmtScore(d._val),
+    main: (d) => d._val, ref: (d) => d._exp, value: (d) => fmtScore(d._val), suffix: (d) => (d.reLegacy ? '†' : ''),
     chip: (d) => ({ text: signed(d._gap), tone: d._gap > 0 ? 'good' : d._gap < 0 ? 'bad' : '' }),
     tip: (d) => `${modelEffort(d)} · Gamefeel ${fmtScore(d._val)} · expected from AA index ${d.aaIndex}: ${d._exp.toFixed(1)}`,
   });
@@ -1317,7 +1349,7 @@ function generalHTML(metric, sort, hidden) {
     `The dashed outline is the Gamefeel ${what} score a model would get from its general capability alone: a straight-line fit on the Artificial Analysis Intelligence Index (r² = ${fit.r2.toFixed(2)}). The chip is how far its real score is from that: green = better at game work than its general capability predicts, red = worse.`,
     tog + `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-asort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
     pairKey(`Gamefeel ${what} score`, 'Expected from the AA index') + chart,
-    `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.`);
+    `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.${base.some((d) => d.reLegacy) ? ' † Outdated: RE combined estimated from the model\'s v1.5.1 run until it is re-run on v1.5.2.' : ''}`);
 }
 
 /* ---------- progress over time: GCI (Gamefeel Capabilities Index) by each model's public release date ---------- */
@@ -1421,8 +1453,9 @@ function tilesHTML(hidden) {
   add('ledger', 'Ledger', 'Every column for every entry, sortable', `<p class="tbig">${vis.length}<small> entries</small></p><p class="tnote">price, speed, context, all scores</p>`);
   const hm = ranked('avg').slice(0, 5), range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, [Math.min(...v), Math.max(...v)]]; }));
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
-  const ra = vis.filter((d) => d.re_blind != null && d.re_assisted != null).sort((a, b) => (b.re_assisted - b.re_blind) - (a.re_assisted - a.re_blind)).slice(0, 3);
-  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${d.re_blind}%;width:${Math.max(1, d.re_assisted - d.re_blind)}%;background:${d.tint}"></i></span><em>+${(d.re_assisted - d.re_blind).toFixed(1)}</em></li>`).join('')}</ol>`);
+  const tb = (d) => valOfPart(d, 're_blind'), ta = (d) => valOfPart(d, 're_assisted');   // as in the view: outdated v1.5.1 runs count too
+  const ra = vis.filter((d) => tb(d) != null && ta(d) != null).sort((a, b) => (ta(b) - tb(b)) - (ta(a) - tb(a))).slice(0, 3);
+  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${tb(d)}%;width:${Math.max(1, ta(d) - tb(d))}%;background:${d.tint}"></i></span><em>+${(ta(d) - tb(d)).toFixed(1)}</em></li>`).join('')}</ol>`);
   const ubv = (d) => d.re_blind ?? d.reBlindOld;   // as in the released view: the older blind run stands in until a model is re-run
   const rv = vis.filter((d) => ubv(d) != null && d.re_released > 0).sort((a, b) => (ubv(a) - a.re_released) / a.re_released - (ubv(b) - b.re_released) / b.re_released).slice(0, 3);
   add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((ubv(d) - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
@@ -1450,7 +1483,7 @@ const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined', reLook: 'classic',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
   openOnly: false,
-  gsort: { key: 'avg', dir: -1 }, hsort: { key: 're_combined', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
+  gsort: { key: 'avg', dir: -1 }, hsort: { key: 'gain', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
 
 /* The open-weights switch hides every closed (or unflagged) model in every view, on top of the ticks in the model list. */
@@ -1687,7 +1720,7 @@ const EXPORTS = [
   { name: 'qwen-highlight-size-performance-overall', build: () => sizeFig('overall', NONE, true) },
   // the HTML views from the ☰ menu, all models, default sort
   { name: 'view-every-score-at-a-glance', build: () => ({ html: glanceHTML({ key: 'avg', dir: -1 }, NONE) }) },
-  { name: 'view-re-blind-vs-assisted', build: () => ({ html: reHelpHTML({ key: 're_combined', dir: -1 }, NONE) }) },
+  { name: 'view-re-blind-vs-assisted', build: () => ({ html: reHelpHTML({ key: 'gain', dir: -1 }, NONE) }) },
   { name: 'view-re-released-vs-unreleased', build: () => ({ html: releasedHTML({ key: 'gap', dir: -1 }, NONE) }) },
   { name: 'view-re-released-vs-unreleased-percent', build: () => ({ html: releasedHTML({ key: 'gap', dir: -1 }, NONE, 'pct') }) },
   { name: 'view-effort-overall', build: () => ({ html: effortHTML('avg', NONE) }) },
