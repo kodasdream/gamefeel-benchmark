@@ -63,6 +63,7 @@ async function loadData() {
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
       re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_released: num(r.re_released), re_combined: num(r.re_combined),
       re_blind_hard: num(r.re_blind_hard ?? ''), re_assisted_hard: num(r.re_assisted_hard ?? ''), reLegacy: r.re_legacy || '', reBlindOld: num(r.re_blind_legacy ?? ''),
+      reBlindHardOld: num(r.re_blind_hard_legacy ?? ''), reAssistedHardOld: num(r.re_assisted_hard_legacy ?? ''),
     };
   });
   return { rows, icons, meta: JSON.parse(meta) };
@@ -143,9 +144,20 @@ const segTip = (segs) => (segs && !segs[0].legacy ? ` · adds: ${segs.map((g) =>
 let HATCH_N = 0;
 const hatchDefs = (id, color) => `<pattern id="${id}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="${color}" fill-opacity=".18"/><rect width="5" height="14" fill="${color}" fill-opacity=".9"/></pattern>`;
 const reParts = (d) => { if (d.reLegacy) return 'older v1.5.1 RE score, kept until re-run'; const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l); return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts'; };
+// For Blind Hard and Assisted Hard charts, models without a v1.5.2 run show their recalculated v1.5.1 1x human-only score, marked †.
+const valOfPart = (d, key) => (key === 're_blind_hard' ? (d.re_blind_hard ?? d.reBlindHardOld)
+  : key === 're_assisted_hard' ? (d.re_assisted_hard ?? d.reAssistedHardOld)
+  : d[key]);
+const isPartLegacy = (d, key) => (key === 're_combined' ? Boolean(d.reLegacy)
+  : key === 're_blind_hard' ? (d.re_blind_hard == null && d.reBlindHardOld != null)
+  : key === 're_assisted_hard' ? (d.re_assisted_hard == null && d.reAssistedHardOld != null)
+  : false);
 let RE_VIEW = 'combined';
 const scoreOf = (d, scope) => (scope === 'overall' ? (d.complete ? d.avg : null)
-  : scope === 're' ? (d[RE_FIELD[RE_VIEW]] ?? null) : (d[scope] ?? null));
+  : scope === 're' ? (valOfPart(d, RE_FIELD[RE_VIEW]) ?? null) : (d[scope] ?? null));
+const scopeLegacyKey = (scope) => (scope === 'overall' ? 're_combined'
+  : scope === 're' && (RE_VIEW === 'combined' || RE_VIEW === 'blind-hard' || RE_VIEW === 'assisted-hard') ? RE_FIELD[RE_VIEW]
+  : null);
 // One column per model: keep the best-scoring reasoning effort. Callers pass rows sorted best-first.
 const TOP_N = 35;   // score charts show the top 35 models, each once at its best reasoning effort
 const topNote = (shown, total) => (shown < total ? `Top ${shown} of ${total} models, each at its best reasoning effort.` : `All ${total} models, each at its best reasoning effort.`);
@@ -153,11 +165,15 @@ const bestPerModel = (rows) => { const seen = new Set(); return rows.filter((d) 
 const priceText = (d) => (d.price == null ? 'no price given' : d.free ? 'free' : `$${d.price.toFixed(2)}/task${d.basis ? ` · ${BASIS_WORD[d.basis] || d.basis}` : ''}`);
 const priceLabel = (d) => (d.price == null ? 'no price' : d.free ? 'free' : `$${d.price.toFixed(2)}`);   // under a column
 // A result from the semi-private subset of the RE test has a note (workbook column V) and an asterisk.
-// A model with no v1.5.2 RE run keeps its v1.5.1 RE combined (re_legacy); views that show Overall or RE combined mark it with a dagger.
-let LEGACY_MARK = false;
-const shortName = (d) => d.model + (d.reNote ? '*' : '') + (LEGACY_MARK && d.reLegacy ? '†' : '');
-const withLegacy = (on, fn) => { const k = LEGACY_MARK; LEGACY_MARK = on; try { return fn(); } finally { LEGACY_MARK = k; } };
-const legacyFootnote = (rows) => (rows.some((d) => d.reLegacy) ? '† Older RE test: these models keep their v1.5.1 RE combined score until they are re-run on the current test.' : null);
+// A model with no v1.5.2 RE run keeps its v1.5.1 RE combined (re_legacy) or recalculated v1.5.1 hard score, marked with a dagger.
+let LEGACY_MARK = null;
+const shortName = (d) => d.model + (d.reNote ? '*' : '') + (LEGACY_MARK && isPartLegacy(d, LEGACY_MARK) ? '†' : '');
+const withLegacy = (on, fn) => { const k = LEGACY_MARK; LEGACY_MARK = on === true ? 're_combined' : (on || null); try { return fn(); } finally { LEGACY_MARK = k; } };
+const legacyFootnote = (rows, key = LEGACY_MARK || 're_combined') => {
+  if (!rows.some((d) => isPartLegacy(d, key))) return null;
+  if (key === 're_blind_hard' || key === 're_assisted_hard') return '† Recalculated from the model\'s v1.5.1 run (human-rated cards only, 1x), until it is re-run on v1.5.2.';
+  return '† Older RE test: these models keep their v1.5.1 RE combined score until they are re-run on the current test.';
+};
 const modelEffort = (d) => [d.model, d.effort].filter(Boolean).join(' · ');
 const namesOf = (rows) => [...new Set(rows.map((d) => d.model))].join(', ');
 const RE_FULL = 'Every other result is the full RE test, over 8,000 tasks.';
@@ -352,7 +368,7 @@ function overviewFigInner(hidden) {
 }
 
 /* ---------- figure: scores columns (overall or one subcategory) ---------- */
-function scoresFig(scope, hidden) { return withLegacy(scope === 'overall' || (scope === 're' && RE_VIEW === 'combined'), () => scoresFigInner(scope, hidden)); }
+function scoresFig(scope, hidden) { return withLegacy(scopeLegacyKey(scope), () => scoresFigInner(scope, hidden)); }
 function scoresFigInner(scope, hidden) {
   let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null)
     .sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
@@ -380,7 +396,7 @@ function scoresFigInner(scope, hidden) {
 }
 
 /* The rows one RE chart shows: every model once, at its best reasoning effort; lowest left, best right. */
-const reRows = (key) => bestPerModel(DATA.filter((d) => d[key] != null).sort((a, b) => b[key] - a[key])).slice(0, TOP_N).reverse();
+const reRows = (key) => bestPerModel(DATA.filter((d) => valOfPart(d, key) != null).sort((a, b) => valOfPart(b, key) - valOfPart(a, key))).slice(0, TOP_N).reverse();
 
 /* ---------- figure: the RE export — blind / assisted / combined as three bar charts stacked vertically ---------- */
 function reStackedFig() {
@@ -394,21 +410,24 @@ function reStackedFig() {
     ['re_released', 'RELEASED · BLIND', 'Blind, on proposals for released commercial games such as Balatro, Slay the Spire and World of Warcraft.'],
     ['re_combined', 'COMBINED', '5 × blind + 2 × blind hard + 3 × assisted + 1 × assisted hard + 2 × released, ÷ 13. Missing parts estimated from the rest.'],
   ];
+  const hasCombLeg = reRows('re_combined').some((d) => isPartLegacy(d, 're_combined'));
+  const hasHardLeg = reRows('re_blind_hard').some((d) => isPartLegacy(d, 're_blind_hard')) || reRows('re_assisted_hard').some((d) => isPartLegacy(d, 're_assisted_hard'));
   const lines = [
     'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
     'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Hard: scored only on the cards the designers rated by hand.',
     'Overall uses RE combined only, at 1.5x weight.',
     'Every model is shown once per chart, at its best reasoning effort.',
-    ...[legacyFootnote(reRows('re_combined'))].filter(Boolean),
+    ...(hasCombLeg || hasHardLeg ? ['† Older RE test: keeps the model\'s v1.5.1 RE combined score (or recalculated v1.5.1 1x human-only Hard score) until it is re-run on v1.5.2.'] : []),
   ];
   const GAP = 90, W = 2 * WC;
   const cells = sections.map(([key, label, desc]) => {
     const rows = reRows(key);
-    const note = `  ${topNote(rows.length, bestPerModel(DATA.filter((d) => d[key] != null)).length)}`;
+    const note = `  ${topNote(rows.length, bestPerModel(DATA.filter((d) => valOfPart(d, key) != null)).length)}`;
     let body = `<text x="64" y="26" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
     body += `<text x="64" y="60" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
-    const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${label} ${fmtScore(d[key])} · ${priceText(d)}${key === 're_combined' ? ` · ${reParts(d)}` : ''}` }));
-    const chart = withLegacy(key === 're_combined', () => columnChart(items, { top: 80, ...fitAxis(rows.length ? rows[rows.length - 1][key] : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` }));
+    const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${label} ${fmtScore(v)} · ${priceText(d)}${key === 're_combined' ? ` · ${reParts(d)}` : ''}` }; });
+    const legKey = (key === 're_combined' || key === 're_blind_hard' || key === 're_assisted_hard') ? key : null;
+    const chart = withLegacy(legKey, () => columnChart(items, { top: 80, ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', empty: `No model has a ${label.toLowerCase()} score yet.` }));
     return { body: body + chart.body, H: chart.H };
   });
   let body = '', top = topFor(lines);
@@ -444,28 +463,31 @@ function reRibbonSvg(w, y) {   // the five parts at 5 / 2 / 3 / 1 / 2 of 13, in 
 }
 function partPanel(k, label, w, x, y, pw, hidden) {
   const color = RE_PART_COLOR[k];
-  const all = bestPerModel(DATA.filter((d) => !hidden.has(d.id) && d[k] != null).sort((a, b) => b[k] - a[k]));
-  const rows = all.slice(0, 8), max = rows.length ? Math.max(rows[0][k], 0.01) : 1;
+  const all = bestPerModel(DATA.filter((d) => !hidden.has(d.id) && valOfPart(d, k) != null).sort((a, b) => valOfPart(b, k) - valOfPart(a, k)));
+  const rows = all.slice(0, 8), max = rows.length ? Math.max(valOfPart(rows[0], k), 0.01) : 1;
   const nameX = x + 88, track = pw - 88, rowH = 76, y0 = y + 142;
   let s = `<rect x="${x.toFixed(1)}" y="${y}" width="${pw.toFixed(1)}" height="10" rx="5" fill="${color}"/>`;
   s += `<text x="${x.toFixed(1)}" y="${y + 62}" font-size="34" font-weight="800" fill="${C.ink}">${esc(label.toUpperCase())}</text>`;
   s += `<text x="${(x + pw).toFixed(1)}" y="${y + 62}" font-size="23" font-weight="800" text-anchor="end" fill="${C.soft}">${w} of 13</text>`;
   s += `<text x="${x.toFixed(1)}" y="${y + 98}" font-size="21" font-weight="600" fill="${C.faint}">${esc(PART_DESC[k])}</text>`;
-  rows.forEach((d, i) => {
-    const ry = y0 + i * rowH, v = d[k];
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · ${label} ${fmtScore(v)}`)}">`;
-    s += `<rect x="${x.toFixed(1)}" y="${ry - 34}" width="${pw.toFixed(1)}" height="${rowH}" fill="transparent"/>`;
-    s += `<text x="${(x + 18).toFixed(1)}" y="${ry + 8}" font-size="22" font-weight="800" text-anchor="middle" fill="${i === 0 ? C.ink : C.faint}" style="font-variant-numeric:tabular-nums">${i + 1}</text>`;
-    s += iconSvg(d, (x + 40).toFixed(1), ry - 20, 34);
-    s += `<text x="${nameX.toFixed(1)}" y="${ry + 6}" font-size="24" font-weight="800" fill="${C.ink}">${esc(shortName(d))}<tspan dx="10" font-size="20" font-weight="600" fill="${C.soft}">${esc(d.effort)}</tspan></text>`;
-    s += `<text x="${(x + pw).toFixed(1)}" y="${ry + 6}" font-size="26" font-weight="800" text-anchor="end" fill="${C.ink}" style="font-variant-numeric:tabular-nums">${fmtScore(v)}</text>`;
-    s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${track.toFixed(1)}" height="10" rx="5" fill="${C.track}"/>`;
-    s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${Math.max(10, (track * v) / max).toFixed(1)}" height="10" rx="5" fill="${color}"/>`;
-    s += `</g>`;
+  const legKey = (k === 're_blind_hard' || k === 're_assisted_hard') ? k : null;
+  withLegacy(legKey, () => {
+    rows.forEach((d, i) => {
+      const ry = y0 + i * rowH, v = valOfPart(d, k);
+      s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · ${label} ${fmtScore(v)}${legKey && isPartLegacy(d, legKey) ? ' (recalculated v1.5.1 run)' : ''}`)}">`;
+      s += `<rect x="${x.toFixed(1)}" y="${ry - 34}" width="${pw.toFixed(1)}" height="${rowH}" fill="transparent"/>`;
+      s += `<text x="${(x + 18).toFixed(1)}" y="${ry + 8}" font-size="22" font-weight="800" text-anchor="middle" fill="${i === 0 ? C.ink : C.faint}" style="font-variant-numeric:tabular-nums">${i + 1}</text>`;
+      s += iconSvg(d, (x + 40).toFixed(1), ry - 20, 34);
+      s += `<text x="${nameX.toFixed(1)}" y="${ry + 6}" font-size="24" font-weight="800" fill="${C.ink}">${esc(shortName(d))}<tspan dx="10" font-size="20" font-weight="600" fill="${C.soft}">${esc(d.effort)}</tspan></text>`;
+      s += `<text x="${(x + pw).toFixed(1)}" y="${ry + 6}" font-size="26" font-weight="800" text-anchor="end" fill="${C.ink}" style="font-variant-numeric:tabular-nums">${fmtScore(v)}</text>`;
+      s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${track.toFixed(1)}" height="10" rx="5" fill="${C.track}"/>`;
+      s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${Math.max(10, (track * v) / max).toFixed(1)}" height="10" rx="5" fill="${color}"/>`;
+      s += `</g>`;
+    });
   });
   const more = all.length > rows.length ? `Top ${rows.length} of ${all.length} models` : `All ${all.length} models`;
   s += `<text x="${x.toFixed(1)}" y="${(y0 + rows.length * rowH - 4).toFixed(1)}" font-size="20" font-weight="600" fill="${C.faint}">${more}</text>`;
-  return { body: s, H: 142 + rows.length * rowH + 10 };
+  return { body: s, H: 142 + rows.length * rowH + 10, hasLegacy: Boolean(legKey && rows.some((d) => isPartLegacy(d, legKey))) };
 }
 function reBoardFig(hidden = NONE, wide = false) {
   const W = wide ? 2 * WC : WC, cols = wide ? 5 : 3, RIB = 112;
@@ -498,29 +520,33 @@ function reBoardFig(hidden = NONE, wide = false) {
   body += `<line x1="64" x2="${W - 64}" y1="${top}" y2="${top}" stroke="${C.track}" stroke-width="3"/>`;
   top += 64;
   const gap = 64, pw = (W - 128 - gap * (cols - 1)) / cols;
+  let hardPanelLeg = false;
   for (let r = 0; r * cols < RE_PARTS.length; r++) {
     let ph = 0;
     RE_PARTS.slice(r * cols, r * cols + cols).forEach(([k, l, w], i) => {
       const p = partPanel(k, l[0].toUpperCase() + l.slice(1), w, 64 + i * (pw + gap), top, pw, hidden);
-      body += p.body; ph = Math.max(ph, p.H);
+      body += p.body; ph = Math.max(ph, p.H); if (p.hasLegacy) hardPanelLeg = true;
     });
     top += ph + 40;
   }
-  const subset = DATA.filter((d) => !hidden.has(d.id) && d.reNote && RE_PARTS.some(([k]) => d[k] != null));
-  const notes = [subset.length ? reFootnote(subset) : null].filter(Boolean).flatMap((t) => wrapText(t, 20, 600, W - 128));
+  const subset = DATA.filter((d) => !hidden.has(d.id) && d.reNote && RE_PARTS.some(([k]) => valOfPart(d, k) != null));
+  const notes = [
+    subset.length ? reFootnote(subset) : null,
+    hardPanelLeg ? '† In the Blind hard and Assisted hard panels, marks a recalculated v1.5.1 run (human-rated cards only, 1x) until the model is re-run on v1.5.2.' : null,
+  ].filter(Boolean).flatMap((t) => wrapText(t, 20, 600, W - 128));
   notes.forEach((t, i) => { body += `<text x="64" y="${top + 30 * i}" font-size="20" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
   const H = top + 30 * notes.length + 50;
   return { W, H, body: frame(W, H, 'GAMEFEEL · RE BOARD', lines) + body, wide: true, ...(wide ? { exportScale: 2 } : {}) };
 }
 
 /* ---------- figure: one RE section on its own — exported separately as scores-re-blind / -assisted / -combined ---------- */
-function reSingleFig(view) { return withLegacy(view === 'combined', () => reSingleFigInner(view)); }
+function reSingleFig(view) { return withLegacy((view === 'combined' || view === 'blind-hard' || view === 'assisted-hard') ? RE_FIELD[view] : null, () => reSingleFigInner(view)); }
 function reSingleFigInner(view) {
   const key = RE_FIELD[view];
   const rows = reRows(key);
-  const items = rows.map((d) => ({ d, v: d[key], value: fmtScore(d[key]), tip: `${RE_LABEL[view].toLowerCase()} ${fmtScore(d[key])} · ${priceText(d)}${view === 'combined' ? ` · ${reParts(d)}` : ''}` }));
+  const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${RE_LABEL[view].toLowerCase()} ${fmtScore(v)} · ${priceText(d)}${view === 'combined' ? ` · ${reParts(d)}` : ''}` }; });
   const lines0 = [...RE_LINES[view]];
-  const chart = columnChart(items, { top: topFor([...lines0, '']), ...fitAxis(rows.length ? rows[rows.length - 1][key] : 1), unit: 'score', empty: `No model has a ${RE_LABEL[view].toLowerCase()} score yet.` });
+  const chart = columnChart(items, { top: topFor([...lines0, '']), ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', empty: `No model has a ${RE_LABEL[view].toLowerCase()} score yet.` });
   const lines = [...lines0,
     `Best reasoning effort per model, all ${rows.length} models. Scale 0 to the best score; price per task under each column.`];
   const foot = footNotes([LEGACY_MARK ? legacyFootnote(rows) : null].filter(Boolean), chart.H);
@@ -1054,7 +1080,7 @@ const sortBy = (rows, key, dir, val = (d, k) => d[k]) => [...rows].sort((a, b) =
 const sortHead = (attr, key, label, sort, cls = '') => `<th class="${cls}"><button type="button" data-${attr}="${key}" class="${sort.key === key ? 'on' : ''}">${esc(label)}${sort.key === key ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button></th>`;
 
 /* ---------- phone: one ranked list per scope instead of a shrunken column chart ---------- */
-function rankListHTML(scope, hidden) { return withLegacy(scope === 'overall' || (scope === 're' && RE_VIEW === 'combined'), () => rankListInner(scope, hidden)); }
+function rankListHTML(scope, hidden) { return withLegacy(scopeLegacyKey(scope), () => rankListInner(scope, hidden)); }
 function rankListInner(scope, hidden) {
   let rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null).sort((a, b) => scoreOf(b, scope) - scoreOf(a, scope));
   rows = bestPerModel(rows);
