@@ -62,7 +62,7 @@ async function loadData() {
       reNote: r.re_test || '', aaIndex: num(r.aa_index || ''), gci: num(r.gci || ''), firstSeen: r.release_date || '',   // set only on a result from the semi-private subset of the RE test
       ...Object.fromEntries(SCORE_KEYS.map((k) => [k, num(r[k === 're' ? 're_combined' : k])])),
       re_blind: num(r.re_blind), re_assisted: num(r.re_assisted), re_released: num(r.re_released), re_combined: num(r.re_combined),
-      re_blind_hard: num(r.re_blind_hard ?? ''), re_assisted_hard: num(r.re_assisted_hard ?? ''), reLegacy: r.re_legacy || '',
+      re_blind_hard: num(r.re_blind_hard ?? ''), re_assisted_hard: num(r.re_assisted_hard ?? ''), reLegacy: r.re_legacy || '', reBlindOld: num(r.re_blind_legacy ?? ''),
     };
   });
   return { rows, icons, meta: JSON.parse(meta) };
@@ -1111,7 +1111,7 @@ function pairBars(rows, o) {
     if (cur) out.push(cur);
     return out;
   };
-  const names = rows.map((d) => wrap(shortName(d), pitch - 6));
+  const names = rows.map((d) => wrap(shortName(d) + (o.suffix ? o.suffix(d) : ''), pitch - 6));
   const nameLines = Math.max(1, ...names.map((l) => l.length));
   const H = B + 36 + nameLines * 15 + 20;
   const col = (x, y, w, h, r) => (h <= 0 ? '' : `M${x.toFixed(1)} ${(y + h).toFixed(1)}V${(y + Math.min(r, h)).toFixed(1)}Q${x.toFixed(1)} ${y.toFixed(1)} ${(x + r).toFixed(1)} ${y.toFixed(1)}H${(x + w - r).toFixed(1)}Q${(x + w).toFixed(1)} ${y.toFixed(1)} ${(x + w).toFixed(1)} ${(y + Math.min(r, h)).toFixed(1)}V${(y + h).toFixed(1)}Z`);
@@ -1171,28 +1171,30 @@ function reHelpHTML(sort, hidden) {
 function releasedHTML(sort, hidden, mode = 'pts') {
   // solid = RE blind on the benchmark's unreleased games, dashed outline = RE blind on released games;
   // the chip says how much weaker the unreleased score is: points (unreleased − released) or percent of the released score
-  const base = DATA.filter((d) => !hidden.has(d.id) && d.re_blind != null && d.re_released != null);
+  // unreleased = the v1.5.2 blind score, or for a model not re-run yet its v1.5.1 blind run (same games, older handoff wording), marked †
+  const ub = (d) => d.re_blind ?? d.reBlindOld, old = (d) => d.re_blind == null && d.reBlindOld != null;
+  const base = DATA.filter((d) => !hidden.has(d.id) && ub(d) != null && d.re_released != null);
   const pct = mode === 'pct';
-  const dropPts = (d) => d.re_blind - d.re_released;                                       // negative = weaker on unreleased
+  const dropPts = (d) => ub(d) - d.re_released;                                       // negative = weaker on unreleased
   const dropPct = (d) => (d.re_released > 0 ? (dropPts(d) / d.re_released) * 100 : null);
   const fmtPct = (v) => (v == null ? 'n/a' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v))}%`);
   const sizeOf = (d) => -(pct ? dropPct(d) ?? 0 : dropPts(d));                             // size of the drop: larger = weaker on unreleased
-  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? sizeOf(d) : k === 'model' ? d.model : d[k]));
+  const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gap' ? sizeOf(d) : k === 'model' ? d.model : k === 're_blind' ? ub(d) : d[k]));
   const opts = [['gap', 'Biggest drop'], ['re_released', 'Released'], ['re_blind', 'Unreleased'], ['model', 'Name']];
   const avgDrop = base.length ? base.reduce((a, d) => a + dropPts(d), 0) / base.length : 0;
-  const sumB = base.reduce((a, d) => a + d.re_blind, 0), sumR = base.reduce((a, d) => a + d.re_released, 0);
+  const sumB = base.reduce((a, d) => a + ub(d), 0), sumR = base.reduce((a, d) => a + d.re_released, 0);
   const pooled = sumR > 0 ? ((sumB - sumR) / sumR) * 100 : null;
   const modeSeg = `<div class="seg" role="group" aria-label="Show the difference as">${[['pts', 'Points'], ['pct', 'Percent']].map(([k, l]) => `<button type="button" data-rmode="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   const chart = rows.length ? pairBars(rows, {
-    main: (d) => d.re_blind, ref: (d) => d.re_released, value: (d) => fmtScore(d.re_blind),
+    main: ub, ref: (d) => d.re_released, value: (d) => fmtScore(ub(d)), suffix: (d) => (old(d) ? '†' : ''),
     chip: (d) => { const v = pct ? dropPct(d) : dropPts(d); return { text: pct ? fmtPct(v) : signed(v), tone: v == null ? '' : v < 0 ? 'bad' : v > 0 ? 'good' : '' }; },
-    tip: (d) => `${modelEffort(d)} · unreleased ${fmtScore(d.re_blind)} · released ${fmtScore(d.re_released)} · ${signed(dropPts(d))} points (${fmtPct(dropPct(d))})`,
+    tip: (d) => `${modelEffort(d)} · unreleased ${fmtScore(ub(d))}${old(d) ? ' (v1.5.1 run)' : ''} · released ${fmtScore(d.re_released)} · ${signed(dropPts(d))} points (${fmtPct(dropPct(d))})`,
   }) : '<p class="sub">No model with both scores is shown.</p>';
   return card('Released vs unreleased games: how much weaker on unseen games?',
     `Both runs are blind. The chip is how much weaker the score on the benchmark's own unreleased games is than on released commercial games (Balatro, Slay the Spire, World of Warcraft and others)${pct ? ', as a percent of the released score' : ', in points'}.`,
     `<div class="sortbar"><span class="sortgrp"><span class="seg-cap">Show</span>${modeSeg}</span><span class="sortgrp"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-rsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></span></div>` +
     pairKey('Unreleased games', 'Released games') + chart,
-    `A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own column. On average the unreleased score is ${signed(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
+    `A big drop can mean the model leans on what it already knows about famous games rather than reading the game in front of it. Only the ${base.length} entries with a released-games run so far; every reasoning effort is its own column.${base.some(old) ? ' † Unreleased score from the model\'s v1.5.1 blind run (same games; v1.5.2 only rewords the handoff), until it is re-run.' : ''} On average the unreleased score is ${signed(avgDrop)} points${pooled != null ? `; all entries together score ${fmtPct(pooled)} on unreleased games` : ''}.`);
 }
 
 /* ---------- is more effort worth it: each model's effort levels as one line ---------- */
@@ -1375,8 +1377,9 @@ function tilesHTML(hidden) {
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
   const ra = vis.filter((d) => d.re_blind != null && d.re_assisted != null).sort((a, b) => (b.re_assisted - b.re_blind) - (a.re_assisted - a.re_blind)).slice(0, 3);
   add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${d.re_blind}%;width:${Math.max(1, d.re_assisted - d.re_blind)}%;background:${d.tint}"></i></span><em>+${(d.re_assisted - d.re_blind).toFixed(1)}</em></li>`).join('')}</ol>`);
-  const rv = vis.filter((d) => d.re_blind != null && d.re_released > 0).sort((a, b) => (a.re_blind - a.re_released) / a.re_released - (b.re_blind - b.re_released) / b.re_released).slice(0, 3);
-  add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((d.re_blind - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
+  const ubv = (d) => d.re_blind ?? d.reBlindOld;   // as in the released view: the older blind run stands in until a model is re-run
+  const rv = vis.filter((d) => ubv(d) != null && d.re_released > 0).sort((a, b) => (ubv(a) - a.re_released) / a.re_released - (ubv(b) - b.re_released) / b.re_released).slice(0, 3);
+  add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((ubv(d) - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
   const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
   const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
   add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(1)}`).join(' → ')}</em></li>`).join('')}</ol>`);
