@@ -153,7 +153,7 @@ const RE_LABEL = { combined: 'Combined', blind: 'Blind', assisted: 'Assisted', r
 // Human reference baselines on Blind Hard (unreleased game, hand-rated cards, 1x):
 // regular Blind Hard shows only the ~2% inexperienced gamer line so the AI scale stays unstretched;
 // the dedicated Blind Hard · vs Human section scales to 60% to show both baselines together.
-const HUMAN_AVG_BLIND_HARD = { v: 2, label: '~2% · Avg 120 IQ human gamer (no experience)', color: '#b45309' };
+const HUMAN_AVG_BLIND_HARD = { v: 2, label: '~2% · Avg 120 IQ human gamer (no experience)', color: '#64748b' };
 const HUMAN_EXPERT_BLIND_HARD = { v: 60, label: '~60% · Human expert (100+ hrs experience)', color: '#0f766e' };
 // v1.5.2 RE combined (computed by the build): weighted mean of five parts; a missing part is estimated from the parts the model has
 const RE_PARTS = [['re_blind', 'blind', 5], ['re_blind_hard', 'blind hard', 2], ['re_assisted', 'assisted', 3], ['re_assisted_hard', 'assisted hard', 1], ['re_released', 'released', 2]];
@@ -377,7 +377,14 @@ function columnChart(items, o) {
     s += `<text x="${X0 - 18}" y="${(Y(t) + 8).toFixed(1)}" font-size="22" font-weight="700" text-anchor="end" fill="${C.soft}">${+t.toFixed(1)}</text>`;
   });
   s += `<text x="${X0 - 18}" y="${yT - 30}" font-size="20" font-weight="700" text-anchor="end" fill="${C.faint}">${esc(o.unit)}</text>`;
+  const refLines = (o.refLines || []).filter((rl) => rl.v >= yMin && rl.v <= o.max);
+  // Draw horizontal reference lines behind all bars and text
+  refLines.forEach((rl) => {
+    const ry = Y(rl.v);
+    s += `<line x1="${X0}" y1="${ry.toFixed(1)}" x2="${X1}" y2="${ry.toFixed(1)}" stroke="${rl.color}" stroke-width="3" stroke-dasharray="12 9" stroke-opacity="0.72"/>`;
+  });
   const colTops = [];
+  const valHalo = refLines.length ? ' paint-order="stroke" stroke="#ffffff" stroke-width="6" stroke-linejoin="round"' : '';
   items.forEach((it, i) => {
     const d = it.d, cx = x0 + pitch * (i + 0.5);
     const h = Math.max(6, ((it.v - yMin) / ySpan) * COL.plot), top = yB - h;
@@ -399,7 +406,7 @@ function columnChart(items, o) {
         yy = yTop;
       });
     } else s += `<path d="${capPath(cx - bw / 2, cx + bw / 2, top, yB, Math.min(8, bw / 2, h))}" fill="${d.tint}"/>`;
-    s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="${vFont.toFixed(1)}" font-weight="800" text-anchor="middle" fill="${C.ink}">${esc(it.value)}</text>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(top - 14).toFixed(1)}" font-size="${vFont.toFixed(1)}" font-weight="800" text-anchor="middle" fill="${C.ink}"${valHalo}>${esc(it.value)}</text>`;
     if (isNew(d)) s += `<text x="${cx.toFixed(1)}" y="${(top - 52).toFixed(1)}" font-size="20" font-weight="800" letter-spacing="1" text-anchor="middle" fill="${d.tint}">NEW!</text>`;
     if (isWarn(d)) s += warnSvg(cx, top - (isNew(d) ? 82 : 54));
     s += iconSvg(d, (cx - iSize / 2).toFixed(1), yB + 20, iSize);
@@ -408,12 +415,10 @@ function columnChart(items, o) {
     s += `<text transform="translate(${nx.toFixed(1)} ${yB + 150}) rotate(-45)" font-size="23" font-weight="800" text-anchor="end" fill="${C.ink}">${esc(shortName(d))}</text>`;
     s += `</g>`;
   });
-  // Optional horizontal reference lines (e.g. human baselines on Blind Hard), drawn above bars with collision-free pill labels
+  // Collision-free pill labels for reference lines
   const placedPills = [];
-  (o.refLines || []).forEach((rl) => {
-    if (rl.v < yMin || rl.v > o.max) return;
+  refLines.forEach((rl) => {
     const ry = Y(rl.v);
-    s += `<line x1="${X0}" y1="${ry.toFixed(1)}" x2="${X1}" y2="${ry.toFixed(1)}" stroke="${rl.color}" stroke-width="3.5" stroke-dasharray="14 9" stroke-opacity="0.92"/>`;
     const pw = textW(rl.label, 20, 800) + 28, ph = 36;
     const px = X0 + 8;
     const under = colTops.filter((c) => c.x1 >= px - 8 && c.x0 <= px + pw + 8);
@@ -426,7 +431,7 @@ function columnChart(items, o) {
     placedPills.push({ y0: py, y1: py + ph });
     if (py + ph + 12 < ry) {
       const lx = px + 8;
-      s += `<line x1="${lx.toFixed(1)}" y1="${(py + ph).toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ry.toFixed(1)}" stroke="${rl.color}" stroke-width="2.5" stroke-dasharray="5 4" stroke-opacity="0.75"/>`;
+      s += `<line x1="${lx.toFixed(1)}" y1="${(py + ph).toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ry.toFixed(1)}" stroke="${rl.color}" stroke-width="2.5" stroke-dasharray="5 4" stroke-opacity="0.7"/>`;
       s += `<circle cx="${lx.toFixed(1)}" cy="${ry.toFixed(1)}" r="4.5" fill="${rl.color}"/>`;
     }
     s += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph}" rx="10" fill="#ffffff" fill-opacity="0.96" stroke="${rl.color}" stroke-width="2.5"/>`;
