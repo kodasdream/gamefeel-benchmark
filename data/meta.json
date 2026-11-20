@@ -1,12 +1,12 @@
 {
-  "updated": "2026-11-20 03:24",
+  "updated": "2026-11-20 05:30",
   "entries": 57,
   "standard": "v1.5.2",
   "gci": {
     "base": "v1.5",
     "standard": "v1.5.2",
-    "a": 1.0491,
-    "b": 0.428,
+    "a": 1.0568,
+    "b": 0.261,
     "anchors": 28
   },
   "re_combined": {
@@ -19,22 +19,22 @@
     },
     "scale": {
       "re_blind": 1.0,
-      "re_blind_hard": 0.211,
-      "re_assisted": 1.8601,
-      "re_assisted_hard": 0.5402,
-      "re_released": 2.4058
+      "re_blind_hard": 0.2119,
+      "re_assisted": 1.8119,
+      "re_assisted_hard": 0.5304,
+      "re_released": 2.4024
     },
     "pairs": {
-      "re_blind": 10,
-      "re_blind_hard": 10,
-      "re_assisted": 9,
-      "re_assisted_hard": 9,
-      "re_released": 8
+      "re_blind": 11,
+      "re_blind_hard": 11,
+      "re_assisted": 10,
+      "re_assisted_hard": 10,
+      "re_released": 9
     },
     "legacy": 45,
     "v151_to_v152": {
-      "re_blind": 0.8358,
-      "re_blind_hard": 0.6552,
+      "re_blind": 0.7415,
+      "re_blind_hard": 0.4723,
       "re_assisted": 0.3298,
       "re_assisted_hard": 0.1012
     }
