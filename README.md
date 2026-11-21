@@ -23,15 +23,21 @@ All 12 are real game development projects that were never published, so no model
 
 Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcategory-game pairings** and a total of about **60,000 tasks**.
 
-| Group      | Subcategory                       | How it is graded                  |
-|------------|-----------------------------------|-----------------------------------|
-| Coding     | Create                            | Ground-truth answer key           |
-| Coding     | Debugging                         | Ground-truth answer key           |
-| Gamefeel   | Gamefeel                          | Human evaluation                  |
-| Creativity | Ideas                             | Human evaluation                  |
-| Creativity | Visuals                           | Human evaluation                  |
-| Creativity | Audio                             | Human evaluation                  |
-| Gamefeel   | Reverse-Evaluation (RE)           | Ground-truth answer key (formula) |
+| Group      | Subcategory                               | How it is graded                  |
+|------------|-------------------------------------------|-----------------------------------|
+| Coding     | Create                                    | Ground-truth answer key           |
+| Coding     | Debugging                                 | Ground-truth answer key           |
+| Gamefeel   | Gamefeel                                  | Human evaluation                  |
+| Creativity | Ideas                                     | Human evaluation                  |
+| Creativity | Visuals                                   | Human evaluation                  |
+| Creativity | Audio                                     | Human evaluation                  |
+| Gamefeel   | Reverse-Evaluation (RE) – Blind           | Ground-truth answer key (formula) |
+| Gamefeel   | Reverse-Evaluation (RE) – Blind Hard      | Ground-truth answer key (formula) |
+| Gamefeel   | Reverse-Evaluation (RE) – Assisted        | Ground-truth answer key (formula) |
+| Gamefeel   | Reverse-Evaluation (RE) – Assisted Hard   | Ground-truth answer key (formula) |
+| Gamefeel   | Reverse-Evaluation (RE) – Released Blind  | Ground-truth answer key (formula) |
+
+The five Reverse-Evaluation (RE) subsections combine into a single **RE Combined** score (`(5 × Blind + 2 × Blind Hard + 3 × Assisted + 1 × Assisted Hard + 2 × Released Blind) ÷ 13`), which counts at 1.5x weight in Overall. The site also reports **Combined Hard** (`0.66 × Blind Hard + 0.34 × Assisted Hard`) and **Blind Hard vs Human** (comparing AI scores against human baselines).
 
 ### What each subcategory measures
 
@@ -49,7 +55,12 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 **Creativity – Audio:** how good the sound effects and soundtracks are for the content models add.
 
-**Gamefeel – Reverse-Evaluation (RE):** the model rates the results of other AI models as well as real game development changelogs. It is scored on its mean rating error, and on the score drift / separation between the two categories.
+**Gamefeel – Reverse-Evaluation (RE):** the model rates the results of other AI models as well as real game development changelogs. It is scored on its mean rating error, ranking accuracy, and score separation between good and bad designs across five subsections:
+- **Blind:** rates proposals for the unpublished games cold, with no worked examples.
+- **Blind Hard:** the same blind run scored only on items rated by hand by the game's designers (1x multiplier).
+- **Assisted:** studies 39 designer-rated worked examples first (with designer notes on low-scoring items), then rates the rest.
+- **Assisted Hard:** the same assisted run scored only on designer hand-rated items (1x multiplier).
+- **Released Blind:** blind evaluation on proposals for released commercial games (such as Balatro, Slay the Spire, and World of Warcraft), used to measure the gap between seen and unseen games.
 
 ### How it is graded
 
