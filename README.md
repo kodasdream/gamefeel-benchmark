@@ -55,7 +55,11 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 **Answer-key subcategories (Coding – Create, Coding – Debugging).** Each answer is compared with an answer key. Opus 5.5 checks whether a mismatch is only a formatting error or a near miss, and decides whether the answer is accepted.
 
-**Reverse-Evaluation (RE).** Uses ground-truth answer keys with the formula `((fsep * max(0, (AUC - 0.5) * 2)) / max(1, sqrt(MAE))) * L2.5 * M`, where `M` is `1.5` on the regular subsections and `1` on the Hard subsection.
+**Reverse-Evaluation (RE).** Uses ground-truth answer keys with the formula 
+
+`((fsep * max(0, (AUC - 0.5) * 2)) / max(1, sqrt(MAE))) * L2.5 * M`
+
+where `M` is `1.5` on the regular subsections and `1` on the Hard subsection.
 
 > *Formula terms:* `fsep` = folded separation ratio between high- and low-rated items relative to the ground-truth gap (penalizing both under- and over-separation); `AUC` = area under the ROC curve for ranking higher-rated items above lower-rated ones; `MAE` = mean absolute rating error against the answer key; `L2.5` = power-mean accuracy (`p = 2.5`) that penalizes large rating misses more heavily than small ones.
 
