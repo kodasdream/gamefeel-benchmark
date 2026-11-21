@@ -92,7 +92,7 @@ const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (co
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
-const NEW_MODELS = ['Gemini-4-Neon'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = ['Gemini-4-Neon', 'Inkling-2-Small'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => !META.is_historical && (NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`));   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
