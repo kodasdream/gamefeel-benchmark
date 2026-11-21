@@ -25,13 +25,13 @@ Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcateg
 
 | Group      | Subcategory                       | How it is graded                  |
 |------------|-----------------------------------|-----------------------------------|
-| Coding     | Create                            | Answer key, checked by Opus 5.5   |
-| Coding     | Debugging                         | Answer key, checked by Opus 5.5   |
+| Coding     | Create                            | Ground-truth answer key           |
+| Coding     | Debugging                         | Ground-truth answer key           |
 | Gamefeel   | Gamefeel                          | Human evaluation                  |
 | Creativity | Ideas                             | Human evaluation                  |
 | Creativity | Visuals                           | Human evaluation                  |
 | Creativity | Audio                             | Human evaluation                  |
-| Gamefeel   | Reverse-Evaluation (RE)           | Answer key, checked by Opus 5.5   |
+| Gamefeel   | Reverse-Evaluation (RE)           | Ground-truth answer key (formula) |
 
 ### What each subcategory measures
 
@@ -53,7 +53,7 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 ### How it is graded
 
-**Answer-key subcategories (Coding – Create, Coding – Debugging).** Each answer is compared with an answer key. Opus 5.5 checks whether a mismatch is only a formatting error or a near miss, and decides whether the answer is accepted.
+**Answer-key subcategories (Coding – Create, Coding – Debugging).** Each output is scored directly against a ground-truth answer key, with no subjective AI model acting as a judge. An automated helper step only cleans up minor formatting errors so every model's output can be compared universally and consistently against the exact ground truth.
 
 **Reverse-Evaluation (RE).** Uses ground-truth answer keys with the formula 
 
