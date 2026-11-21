@@ -41,12 +41,12 @@ Nex N2.6,Max,nex,Nex,0.06,api,256K,,,,,,,,,,,,,1.25754,,yes,321,FP8,,,,2026-11-1
 Fable-5.2,High,anthropic,Anthropic,3.16,sub,1M,,,90,69,67,51,42,64,30,13.57,,38.03,18.0807,46.7,no,,,,62,49.7,2026-11-09,3.17,,,,,40.79,88.08
 Sonus2,,sonus,SonusLab,,,,,,,,,,,,,,,,6.95714,,,,,,,,,,,v1.5.1,8.19,1.65,,
 Ernie-5.5 Flash Preview,Max,baidu,Baidu,0.3,api,,,,560,64,55,45,36,56,44,,,7.01,3.07163,40.6,yes,560,"BF16, 280B params (computed)",,,43.3,2026-11-11,,,v1.5.1,4.91,1.18,0.61,6.6
-Raon-1-Mini Preview,,raon,Raon AI,,,,,,,,,,,,,,,,0,,yes,57.6,"BF16, 28.8B params (computed)",,,,2026-10-21,,,v1.5.1,0,0,0,0
-Glyph Cluster,,glyph,Glyph,,,,,,,,,,,,,,,,1.17935,,no,,,,,,,,,v1.5.1,1.47,0.18,,
+Raon-1-Mini Preview,Max,raon,Raon AI,,,,,,,,,,,,,,,,0,,yes,57.6,"BF16, 28.8B params (computed)",,,,2026-10-21,,,v1.5.1,0,0,0,0
+Glyph Cluster,Max,glyph,Glyph,,,,,,,,,,,,,,,,1.17935,,no,,,,,,,,,v1.5.1,1.47,0.18,,
 OpenCode Iceman,,opencode,OpenCode,,,,,,,,,,,,,,,,0.869699,,no,,,,,,,,,v1.5.1,1.16,0.04,,
 Nemotron-3-Ultra 550B,,nvidia,NVIDIA,,,,,,,,,,,,,,,,0.648941,,yes,1100,"BF16, 550B params (computed)",,12,,2026-06-04,,,v1.5.1,0.89,0,,
 Beam 1.0,,beam,Beam,,,,,,,,,,,,,,,,0.554151,,yes,1003,"BF16, 501B params (computed)",,18,,2026-10-16,,,v1.5.1,0.76,0,,
-Bonsai-2-27B,,bonsai,Bonsai,,,,,,,,,,,,,,,,0.116112,,yes,5.9,ternary,,,,2026-09-17,,,v1.5.1,0.02,0.17,,
+Bonsai-2-27B,XHigh,bonsai,Bonsai,,,,,,,,,,,,,,,,0.116112,,yes,5.9,ternary,,,,2026-09-17,,,v1.5.1,0.02,0.17,,
 Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,24,1,440,63,59,54,50,65,32,,,33.53,11.8355,45.4,no,,,,53,,,,,v1.5.1,7.55,1.4,14.37,56.63
 Opus-5.5,Max,anthropic,Anthropic,6.93,sub,1M,90,0,67,65,66,50,41,63,26,,18.77,25.49,12.4204,44,no,,,,58,46.9,2026-09-22,,2.7,,13.42,,,
 Qwen-4-Max,XHigh,alibaba,Alibaba Qwen,0.47,sub,1M,,,70,,,,,,,2,5.64,16.58,4.76,,no,,,,,,,0.01,1.78,,,,,
