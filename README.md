@@ -1,6 +1,6 @@
 # The GameFeel Benchmark
 
-A creativity benchmark for AI models on game development focusing on understanding game balancing and complex features. Each model adds content and balance changes to 12 unpublished games, and is scored on coding, gamefeel, creativity and reverse-evaluation (RE). The site shows each model's scores against its price per task, and the open-weight models with a stated size.
+A creativity-focused game balancing and game design benchmark for AI models. Rather than testing generic coding or textbook puzzles, it measures whether models actually understand game design, balance, and feel: each model adds content and balance changes to 12 never-published games, and is scored across coding, gamefeel, creativity, and reverse-evaluation (RE). The site shows each model's scores against its price per task, and the open-weight models with a stated size.
 
 **Open the benchmark:** [https://kodasdream.github.io/gamefeel-benchmark/](https://kodasdream.github.io/gamefeel-benchmark/)
 
@@ -21,7 +21,7 @@ All 12 are real game development projects that were never published, so no model
 
 ### Structure
 
-Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcategory-game pairings** and a total of about **60,000 tasks**.
+Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcategory-game pairings** and a total of **70,000+ tasks**.
 
 | Group      | Subcategory                               | How it is graded                  |
 |------------|-------------------------------------------|-----------------------------------|
@@ -32,12 +32,12 @@ Every game is tested in all 7 subcategories, which gives **7 × 12 = 84 subcateg
 | Creativity | Visuals                                   | Human evaluation                  |
 | Creativity | Audio                                     | Human evaluation                  |
 | Gamefeel   | Reverse-Evaluation (RE) – Blind           | Ground-truth answer key (formula) |
-| Gamefeel   | Reverse-Evaluation (RE) – Blind Hard      | Ground-truth answer key (formula) |
 | Gamefeel   | Reverse-Evaluation (RE) – Assisted        | Ground-truth answer key (formula) |
+| Gamefeel   | Reverse-Evaluation (RE) – Blind Hard      | Ground-truth answer key (formula) |
 | Gamefeel   | Reverse-Evaluation (RE) – Assisted Hard   | Ground-truth answer key (formula) |
-| Gamefeel   | Reverse-Evaluation (RE) – Released Blind  | Ground-truth answer key (formula) |
+| Gamefeel   | Reverse-Evaluation (RE) – Blind Released  | Ground-truth answer key (formula) |
 
-The five Reverse-Evaluation (RE) subsections combine into a single **RE Combined** score (`(5 × Blind + 2 × Blind Hard + 3 × Assisted + 1 × Assisted Hard + 2 × Released Blind) ÷ 13`), which counts at 1.5x weight in Overall. The site also reports **Combined Hard** (`0.66 × Blind Hard + 0.34 × Assisted Hard`) and **Blind Hard vs Human** (comparing AI scores against human baselines).
+The five GameFeel RE subsections (**Blind**, **Assisted**, **Blind Hard**, **Assisted Hard**, and **Blind Released**) combine into a single **RE Combined** score (`(5 × Blind + 2 × Blind Hard + 3 × Assisted + 1 × Assisted Hard + 2 × Blind Released) ÷ 13`), which counts at 1.5x weight in Overall. The site also reports **Combined Hard** (`0.66 × Blind Hard + 0.34 × Assisted Hard`) and **Blind Hard vs Human** (comparing AI scores against human baselines).
 
 ### What each subcategory measures
 
@@ -57,10 +57,12 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 **Gamefeel – Reverse-Evaluation (RE):** the model rates the results of other AI models as well as real game development changelogs. It is scored on its mean rating error, ranking accuracy, and score separation between good and bad designs across five subsections:
 - **Blind:** rates proposals for the unpublished games cold, with no worked examples.
-- **Blind Hard:** the same blind run scored only on items rated by hand by the game's designers (1x multiplier).
 - **Assisted:** studies 39 designer-rated worked examples first (with designer notes on low-scoring items), then rates the rest.
+- **Blind Hard:** the same blind run scored only on items rated by hand by the game's designers (1x multiplier).
 - **Assisted Hard:** the same assisted run scored only on designer hand-rated items (1x multiplier).
-- **Released Blind:** blind evaluation on proposals for released commercial games (such as Balatro, Slay the Spire, and World of Warcraft), used to measure the gap between seen and unseen games.
+- **Blind Released:** blind evaluation on proposals for released commercial games (such as Balatro, Slay the Spire, and World of Warcraft), used to measure the gap between seen and unseen games.
+
+**How hard is Blind Hard?** An average 120 IQ human gamer who has never played the unreleased video games being evaluated scores **2%** on the Blind Hard subsection. Even at the frontier, the task stays extremely difficult: the best singular AI model currently scores **7.1%**, and the best AI agent swarm reaches **11.2%**. Capabilities are already past a typical human baseline and trend upward as models improve, while remaining very far from saturation.
 
 ### How it is graded
 
