@@ -24,8 +24,8 @@
       "is_latest": true,
       "gci_fit": {
         "a": 1.0634,
-        "b": 0.082,
-        "r2": 0.976,
+        "b": 0.08,
+        "r2": 0.9757,
         "anchors": 32,
         "ref": "v1.5.1"
       },
@@ -36,9 +36,9 @@
         "mean_from": 36.27,
         "mean_to": 35.58,
         "delta_mean": -0.69,
-        "delta_median": -0.2,
-        "ratio": 0.981,
-        "r2": 0.976
+        "delta_median": -0.21,
+        "ratio": 0.9811,
+        "r2": 0.9757
       }
     },
     {

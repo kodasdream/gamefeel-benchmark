@@ -138,10 +138,10 @@ function deriveFields() {
   const wsum = ks.reduce((a, k) => a + wt(k), 0);
   DATA.forEach((d) => {
     d.complete = ks.every((k) => d[k] != null);
-    d.avg = d.complete ? Math.round((ks.reduce((a, k) => a + wt(k) * d[k], 0) / wsum) * 10) / 10 : null;
+    d.avg = d.complete ? Math.round((ks.reduce((a, k) => a + wt(k) * d[k], 0) / wsum) * 100) / 100 : null;
     d.free = d.price === 0;
     d.px = d.price == null ? null : Math.max(d.price, PRICE_FLOOR);   // no price: not drawn on a price chart
-    d.value = d.avg != null && d.price > 0 ? Math.round((d.avg / d.price) * 10) / 10 : null;
+    d.value = d.avg != null && d.price > 0 ? Math.round((d.avg / d.price) * 100) / 100 : null;
   });
 }
 // Overall only ranks models with all seven scores (six scores plus Gamefeel RE combined). Subcategories rank any model with that score.
@@ -169,7 +169,7 @@ function reSegs(d) {
   const level = have.reduce((a, [k, , w]) => a + (w * d[k]) / sc[k], 0) / have.reduce((a, [, , w]) => a + w, 0);
   return RE_PARTS.map(([k, l, w]) => ({ k, l, v: (w * (d[k] != null ? d[k] : sc[k] * level)) / 13, color: RE_PART_COLOR[k], est: d[k] == null }));
 }
-const segTip = (segs) => (segs && !segs[0].legacy ? ` · adds: ${segs.map((g) => `${g.l} ${g.v.toFixed(1)}${g.est ? ' (est.)' : ''}`).join(', ')}` : '');
+const segTip = (segs) => (segs && !segs[0].legacy ? ` · adds: ${segs.map((g) => `${g.l} ${g.v.toFixed(2)}${g.est ? ' (est.)' : ''}`).join(', ')}` : '');
 let HATCH_N = 0;
 const hatchDefs = (id, color) => `<pattern id="${id}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="${color}" fill-opacity=".18"/><rect width="5" height="14" fill="${color}" fill-opacity=".9"/></pattern>`;
 const reParts = (d) => {
@@ -239,7 +239,9 @@ const reFootnote = (rows) => {
   rows.forEach((d) => { if (!byNote.has(d.reNote)) byNote.set(d.reNote, []); byNote.get(d.reNote).push(d); });
   return [...byNote].map(([note, rs]) => `* ${namesOf(rs)}: ${note}.`).join(' ') + ` ${RE_FULL}`;
 };
-const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(1));
+const fmt2 = (v) => (v == null ? '—' : v.toFixed(2));
+const fmtScore = (v) => (v == null ? '—' : Number.isInteger(v) ? String(v) : v.toFixed(2));
+const fmtScope = (scope, v) => (scope === 'overall' || scope === 're' ? fmt2(v) : fmtScore(v));
 const scopeTitle = (s) => (s === 'overall' ? 'OVERALL' : SCOPE_LABEL[s].toUpperCase());
 const figTitle = (s) => (s === 're' ? (activeReMode() === 'single' || activeReMode() === 'none' ? 'GAMEFEEL · RE' : `GAMEFEEL · RE (${RE_LABEL[RE_VIEW].toUpperCase()})`) : scopeTitle(s));
 const RE_TIP = {
@@ -363,7 +365,8 @@ function columnChart(items, o) {
   const Y = (v) => yB - ((v - yMin) / ySpan) * COL.plot;
   const pitch = Math.min(PW / items.length, 220), bw = Math.min(pitch * 0.74, 160);
   // dense charts (every model at its best effort) shrink the cap labels so neighbours never collide
-  const vFont = Math.min(30, Math.max(15, pitch * 0.45));
+  const maxValW = Math.max(1, ...items.map((it) => textW(String(it.value || ''), 30, 800)));
+  const vFont = Math.min(30, Math.max(13, ((pitch * 0.9) / maxValW) * 30));
   const sFont = Math.min(20, Math.max(11, pitch * 0.26));
   const iSize = Math.min(40, pitch * 0.8);
   const x0 = X0 + (PW - pitch * items.length) / 2;
@@ -456,14 +459,14 @@ function overviewFigInner(hidden) {
   const paid = rows.filter((d) => d.price > 0).sort((a, b) => a.price - b.price)[0];
   const fast = vis.filter((d) => d.tps != null).sort((a, b) => b.tps - a.tps)[0];
   const tiles = [
-    ['BEST OVERALL', best ? best.avg.toFixed(1) : '—', best ? `${best.model} · ${best.effort}` : 'no model shown'],
+    ['BEST OVERALL', best ? best.avg.toFixed(2) : '—', best ? `${best.model} · ${best.effort}` : 'no model shown'],
     ['CHEAPEST PAID TASK', paid ? `$${paid.price.toFixed(2)}` : '—', paid ? `${paid.model} · ${paid.effort}` : 'no paid model shown'],
     ['FASTEST OUTPUT', fast ? `${fast.tps} tok/s` : '—', fast ? `${fast.model} · ${fast.effort}` : 'no model shown'],
   ];
   const TH = 150, tw = (WC - 128 - 48) / 3, y0 = TOP + TH + 40;
   // best on the right: the columns run from the lowest average on the left to the best on the right
   const ovMin = rows.length ? Math.min(15, Math.floor(rows[rows.length - 1].avg)) : 0;
-  const chart = columnChart(rows.slice().reverse().map((d) => ({ d, v: d.avg, value: d.avg.toFixed(1), tip: `avg ${d.avg.toFixed(1)} · ${priceText(d)}` })),
+  const chart = columnChart(rows.slice().reverse().map((d) => ({ d, v: d.avg, value: d.avg.toFixed(2), tip: `avg ${d.avg.toFixed(2)} · ${priceText(d)}` })),
     { top: y0, ...fitAxis(rows.length ? rows[0].avg : 1, ovMin), unit: 'score', empty: 'No model is shown. Tick one on the left.' });
   const foot = footNotes([...(partial.length ? ['Partial runs without scores in all sections are excluded from Overall (they appear in the subcategories they have scores in).'] : []), legacyFootnote(rows)].filter(Boolean), chart.H);
   const H = foot.H;
@@ -504,7 +507,7 @@ function scoresFigInner(scope, hidden) {
       : [`${SCOPE_LABEL[scope]} score alone. The scale runs from 0 to the best score on this chart. Price per task is under each column.`, `Only models with a score in this subcategory. ${topNote(rows.length, total)}`];
   // best on the right: the columns run from the lowest score on the left to the best on the right
   const refLines = scope === 're' && RE_VIEW === 'blind-hard' ? [HUMAN_AVG_BLIND_HARD] : [];
-  const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScore(v), tip: `score ${fmtScore(v)} · ${priceText(d)}${scope === 're' && RE_VIEW === 'combined' && reParts(d) ? ` · ${reParts(d)}` : ''}` }; }),
+  const chart = columnChart(rows.slice().reverse().map((d) => { const v = scoreOf(d, scope); return { d, v, value: fmtScope(scope, v), tip: `score ${fmtScope(scope, v)} · ${priceText(d)}${scope === 're' && RE_VIEW === 'combined' && reParts(d) ? ` · ${reParts(d)}` : ''}` }; }),
     { top: topFor(lines), ...fitAxis(rows.length ? scoreOf(rows[0], scope) : 1, ovMin), unit: 'score', refLines, empty: scope === 're' && rm === 'none' ? 'Gamefeel · RE was introduced in v1.3.' : 'No model is shown for this view.' });
   const subset = rows.filter((d) => d.reNote);
   const foot = footNotes([
@@ -547,7 +550,7 @@ function reStackedFig() {
     const note = `  ${topNote(rows.length, bestPerModel(DATA.filter((d) => valOfPart(d, key) != null)).length)}`;
     let body = `<text x="64" y="26" font-size="36" font-weight="800" fill="${C.ink}">${label}</text>`;
     body += `<text x="64" y="60" font-size="21" font-weight="500" fill="${C.soft}">${esc(desc + note)}</text>`;
-    const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${label} ${fmtScore(v)} · ${priceText(d)}${key === 're_combined' ? ` · ${reParts(d)}` : ''}` }; });
+    const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmt2(v), tip: `${label} ${fmt2(v)} · ${priceText(d)}${key === 're_combined' ? ` · ${reParts(d)}` : ''}` }; });
     const legKey = key;   // every RE part can carry an outdated v1.5.1 score
     const refLines = key === 're_blind_hard' ? [HUMAN_AVG_BLIND_HARD] : [];
     const chart = withLegacy(legKey, () => columnChart(items, { top: 80, ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', refLines, empty: `No model has a ${label.toLowerCase()} score yet.` }));
@@ -597,12 +600,12 @@ function partPanel(k, label, w, x, y, pw, hidden) {
   withLegacy(legKey, () => {
     rows.forEach((d, i) => {
       const ry = y0 + i * rowH, v = valOfPart(d, k);
-      s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · ${label} ${fmtScore(v)}${legKey && isPartLegacy(d, legKey) ? ' (recalculated v1.5.1 run)' : ''}`)}">`;
+      s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · ${label} ${fmt2(v)}${legKey && isPartLegacy(d, legKey) ? ' (recalculated v1.5.1 run)' : ''}`)}">`;
       s += `<rect x="${x.toFixed(1)}" y="${ry - 34}" width="${pw.toFixed(1)}" height="${rowH}" fill="transparent"/>`;
       s += `<text x="${(x + 18).toFixed(1)}" y="${ry + 8}" font-size="22" font-weight="800" text-anchor="middle" fill="${i === 0 ? C.ink : C.faint}" style="font-variant-numeric:tabular-nums">${i + 1}</text>`;
       s += iconSvg(d, (x + 40).toFixed(1), ry - 20, 34);
       s += `<text x="${nameX.toFixed(1)}" y="${ry + 6}" font-size="24" font-weight="800" fill="${C.ink}">${esc(shortName(d))}<tspan dx="10" font-size="20" font-weight="600" fill="${C.soft}">${esc(d.effort)}</tspan></text>`;
-      s += `<text x="${(x + pw).toFixed(1)}" y="${ry + 6}" font-size="26" font-weight="800" text-anchor="end" fill="${C.ink}" style="font-variant-numeric:tabular-nums">${fmtScore(v)}</text>`;
+      s += `<text x="${(x + pw).toFixed(1)}" y="${ry + 6}" font-size="26" font-weight="800" text-anchor="end" fill="${C.ink}" style="font-variant-numeric:tabular-nums">${fmt2(v)}</text>`;
       s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${track.toFixed(1)}" height="10" rx="5" fill="${C.track}"/>`;
       s += `<rect x="${nameX.toFixed(1)}" y="${ry + 20}" width="${Math.max(10, (track * v) / max).toFixed(1)}" height="10" rx="5" fill="${color}"/>`;
       s += `</g>`;
@@ -622,7 +625,7 @@ function reBoardFig(hidden = NONE, wide = false) {
   top += RIB + 10;
   const all = bestPerModel(DATA.filter((d) => !hidden.has(d.id) && d.re_combined != null).sort((a, b) => b.re_combined - a.re_combined));
   const rows = all.slice(0, TOP_N).reverse();
-  const items = rows.map((d) => { const segs = reSegs(d); return { d, v: d.re_combined, value: fmtScore(d.re_combined), segs, tip: `combined ${fmtScore(d.re_combined)} · ${reParts(d)}${segTip(segs)}` }; });
+  const items = rows.map((d) => { const segs = reSegs(d); return { d, v: d.re_combined, value: fmt2(d.re_combined), segs, tip: `combined ${fmt2(d.re_combined)} · ${reParts(d)}${segTip(segs)}` }; });
   let head = `<text x="64" y="30" font-size="40" font-weight="800" fill="${C.ink}">COMBINED</text>`;
   head += `<text x="64" y="70" font-size="23" font-weight="500" fill="${C.soft}">${esc(`What Overall uses, each column split into what each part adds. ${topNote(rows.length, all.length)}`)}</text>`;
   const legend = [['hatch', 'Hatched: part not run, estimated from the others'], ['legacy', '† Grey: estimated from v1.5.1 RE']];
@@ -667,7 +670,7 @@ function reSingleFig(view) { return withLegacy(RE_FIELD[view], () => reSingleFig
 function reSingleFigInner(view) {
   const key = RE_FIELD[view];
   const rows = reRows(key);
-  const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmtScore(v), tip: `${RE_LABEL[view].toLowerCase()} ${fmtScore(v)} · ${priceText(d)}${view === 'combined' ? ` · ${reParts(d)}` : ''}` }; });
+  const items = rows.map((d) => { const v = valOfPart(d, key); return { d, v, value: fmt2(v), tip: `${RE_LABEL[view].toLowerCase()} ${fmt2(v)} · ${priceText(d)}${view === 'combined' ? ` · ${reParts(d)}` : ''}` }; });
   const lines0 = [...RE_LINES[view]];
   const refLines = view === 'blind-hard' ? [HUMAN_AVG_BLIND_HARD] : [];
   const chart = columnChart(items, { top: topFor([...lines0, '']), ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', refLines, empty: `No model has a ${RE_LABEL[view].toLowerCase()} score yet.` });
@@ -693,7 +696,7 @@ function reBlindHardHumanFig(hidden = NONE) {
     ];
     const items = rows.slice().reverse().map((d) => {
       const v = valOfPart(d, 're_blind_hard');
-      return { d, v, value: fmtScore(v), tip: `blind hard ${fmtScore(v)} · ${priceText(d)}` };
+      return { d, v, value: fmt2(v), tip: `blind hard ${fmt2(v)} · ${priceText(d)}` };
     });
     const chart = columnChart(items, {
       top: topFor(lines),
@@ -827,12 +830,12 @@ function ppFig(scope, hidden) {
   });
 
   const pts = placeLabels(rows.map((d) => {
-    const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScore(sc)}`;
+    const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScope(scope, sc)}`;
     return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
   }), T, B, WP);
   pts.forEach((p) => {
     const d = p.d;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScore(p.sc)}`)}">`;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScope(scope, p.sc)}`)}">`;
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
     s += logoPoint(d, p.x, p.y, front.includes(d));
     if (isWarn(d)) s += warnSvg(p.x, p.y - 40, 30);
@@ -924,12 +927,12 @@ function sizeFig(scope, hidden) {
     s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
   }
   const pts = placeLabels(rows.map((d) => {
-    const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScore(sc)}  ${d.size} GB`;
+    const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScope(scope, sc)}  ${d.size} GB`;
     return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
   }), T, B, WP);
   pts.forEach((p) => {
     const d = p.d;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.size} GB · score ${fmtScore(p.sc)}`)}">`;
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${d.size} GB · score ${fmtScope(scope, p.sc)}`)}">`;
     if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
     s += logoPoint(d, p.x, p.y, front.includes(d));
     if (isWarn(d)) s += warnSvg(p.x, p.y - 40, 30);
@@ -993,7 +996,7 @@ function radarFig(ids, hidden) {
     s += iconSvg(d, px, y - 14, 44);
     s += `<text x="${px + 62}" y="${y + 6}" font-size="26" font-weight="800" fill="${C.ink}">${esc(d.model)}<tspan font-size="19" font-weight="700" fill="${C.soft}">  ${esc(d.effort)}</tspan></text>`;
     s += `<text x="${px + 62}" y="${y + 30}" font-size="18" font-weight="600" fill="${C.soft}">strongest: ${esc(best ? best[1] : '—')}</text>`;
-    s += `<text x="1536" y="${y + 18}" font-size="40" font-weight="800" text-anchor="end" fill="${C.ink}">${d.complete ? d.avg.toFixed(1) : 'partial'}</text>`;
+    s += `<text x="1536" y="${y + 18}" font-size="40" font-weight="800" text-anchor="end" fill="${C.ink}">${d.complete ? d.avg.toFixed(2) : 'partial'}</text>`;
     s += `</g>`;
   });
   if (sel.length > 10) s += `<text x="${px}" y="${TOP + 50 + 10 * 60}" font-size="20" font-weight="600" fill="${C.faint}">+ ${sel.length - 10} more not listed</text>`;
@@ -1044,9 +1047,9 @@ function cellText(d, k) {
     case 'timeMin': return d.timeMin == null ? '—' : String(d.timeMin);
     case 'compress': return d.compress == null ? '—' : String(d.compress);
     case 'tps': return d.tps == null ? '—' : String(d.tps);
-    case 're': return d.re == null ? '—' : d.re.toFixed(1);
-    case 'avg': return d.avg == null ? '—' : d.avg.toFixed(1);
-    case 'value': return d.value == null ? '—' : d.value.toFixed(1);
+    case 're': return d.re == null ? '—' : d.re.toFixed(2);
+    case 'avg': return d.avg == null ? '—' : d.avg.toFixed(2);
+    case 'value': return d.value == null ? '—' : d.value.toFixed(2);
     default: return d[k] == null ? '—' : String(d[k]);
   }
 }
@@ -1146,7 +1149,7 @@ function rankListInner(scope, hidden) {
     }
     const d = it.d, v = it.v;
     return `<li data-m="${esc(d.id)}"><span class="rk">${it.i + 1}</span><div class="rl"><div class="rn">${nameCell(d)}</div>` +
-      `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${scope === 'overall' ? v.toFixed(1) : fmtScore(v)}</b><em>${priceLabel(d)}</em></div></div></li>`;
+      `<div class="rb"><i style="width:${Math.max(1, (v / max) * 72).toFixed(1)}%;background:${d.tint}"></i><b>${fmtScope(scope, v)}</b><em>${priceLabel(d)}</em></div></div></li>`;
   }).join('');
   const sub = scope === 'overall' ? 'Weighted average of the seven scores (RE combined counts 1.5x). Models with a partial record are not ranked.'
     : isBHH ? 'Blind hard (hand-rated cards, 1x) scaled to 60% against human baselines (~2% avg 120 IQ gamer with no experience, ~60% human expert with 100+ hrs).'
@@ -1171,7 +1174,7 @@ function glanceInner(sort, hidden) {
   };
   const head = `<tr>${sortHead('gsort', 'model', 'Model', sort, 'm')}${GLANCE_COLS.map(([k, l]) => sortHead('gsort', k, l, sort)).join('')}</tr>`;
   const body = rows.map((d) => `<tr data-m="${esc(d.id)}"><td class="m">${nameCell(d)}</td>${GLANCE_COLS.map(([k]) =>
-    `<td ${k === 'avg' && d.avg != null ? 'class="ov"' : shade(k, d[k])}>${d[k] == null ? '—' : k === 'avg' ? d.avg.toFixed(1) : fmtScore(d[k])}</td>`).join('')}</tr>`).join('');
+    `<td ${k === 'avg' && d.avg != null ? 'class="ov"' : shade(k, d[k])}>${d[k] == null ? '—' : (k === 'avg' || k === 're') ? d[k].toFixed(2) : fmtScore(d[k])}</td>`).join('')}</tr>`).join('');
   return card('Every score at a glance',
     'Darker = better within that column, so a strong ideas score and a strong RE score read the same way. Click a heading to sort; click again to reverse.',
     `<div class="tscroll"><table class="hm">${head}${body}</table></div>`,
@@ -1257,7 +1260,7 @@ function pairBars(rows, o) {
 }
 // the key above a paired-column chart: what the solid column, the dashed outline and (optionally) the ink bar are
 const pairKey = (main, ref, marker) => `<div class="pairkey"><span><i class="k-solid"></i>${esc(main)}</span><span><i class="k-dash"></i>${esc(ref)}</span>${marker ? `<span><i class="k-mark"></i>${esc(marker)}</span>` : ''}<span><i class="k-chip"></i>difference</span></div>`;
-const signed = (v, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
+const signed = (v, digits = 2) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
 
 /* ---------- blind vs assisted RE ---------- */
 function reHelpHTML(sort, hidden) {
@@ -1269,9 +1272,9 @@ function reHelpHTML(sort, hidden) {
   const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'gain' ? A(d) - B(d) : k === 'model' ? d.model : k === 're_blind' ? B(d) : k === 're_assisted' ? A(d) : d[k]));
   const opts = [['gain', 'Gain from examples'], ['re_assisted', 'Assisted'], ['re_blind', 'Blind'], ['re_combined', 'Combined'], ['model', 'Name']];
   const chart = rows.length ? pairBars(rows, {
-    main: B, ref: A, value: (d) => fmtScore(B(d)), suffix: (d) => (out(d) ? '†' : ''),
+    main: B, ref: A, value: (d) => fmt2(B(d)), suffix: (d) => (out(d) ? '†' : ''),
     chip: (d) => { const g = A(d) - B(d); return { text: signed(g), tone: g > 0 ? 'good' : g < 0 ? 'bad' : '' }; },
-    tip: (d) => `${modelEffort(d)} · blind ${fmtScore(B(d))}${isPartLegacy(d, 're_blind') ? ' (outdated v1.5.1)' : ''} · assisted ${fmtScore(A(d))}${isPartLegacy(d, 're_assisted') ? ' (outdated v1.5.1)' : ''} · RE combined ${fmtScore(d.re_combined)}`,
+    tip: (d) => `${modelEffort(d)} · blind ${fmt2(B(d))}${isPartLegacy(d, 're_blind') ? ' (outdated v1.5.1)' : ''} · assisted ${fmt2(A(d))}${isPartLegacy(d, 're_assisted') ? ' (outdated v1.5.1)' : ''} · RE combined ${fmt2(d.re_combined)}`,
   }) : `<p class="sub">${activeReMode() === 'none' || activeReMode() === 'single' ? 'Blind vs assisted RE was introduced in v1.5.' : 'No model with both scores is shown.'}</p>`;
   return card('Blind vs assisted RE: how much do examples help?',
     'The same RE test, run twice: blind, and again after the model studies 39 rated examples. The chip is what the examples add, in points.',
@@ -1299,9 +1302,9 @@ function releasedHTML(sort, hidden, mode = 'pts') {
   const pooled = sumR > 0 ? ((sumB - sumR) / sumR) * 100 : null;
   const modeSeg = `<div class="seg" role="group" aria-label="Show the difference as">${[['pts', 'Points'], ['pct', 'Percent']].map(([k, l]) => `<button type="button" data-rmode="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   const chart = rows.length ? pairBars(rows, {
-    main: ub, ref: (d) => d.re_released, value: (d) => fmtScore(ub(d)), suffix: (d) => (old(d) ? '†' : ''),
+    main: ub, ref: (d) => d.re_released, value: (d) => fmt2(ub(d)), suffix: (d) => (old(d) ? '†' : ''),
     chip: (d) => { const v = pct ? dropPct(d) : dropPts(d); return { text: pct ? fmtPct(v) : signed(v), tone: v == null ? '' : v < 0 ? 'bad' : v > 0 ? 'good' : '' }; },
-    tip: (d) => `${modelEffort(d)} · unreleased ${fmtScore(ub(d))}${old(d) ? ' (v1.5.1 run)' : ''} · released ${fmtScore(d.re_released)} · ${signed(dropPts(d))} points (${fmtPct(dropPct(d))})`,
+    tip: (d) => `${modelEffort(d)} · unreleased ${fmt2(ub(d))}${old(d) ? ' (v1.5.1 run)' : ''} · released ${fmt2(d.re_released)} · ${signed(dropPts(d))} points (${fmtPct(dropPct(d))})`,
   }) : `<p class="sub">${['none', 'single', 'split3'].includes(activeReMode()) ? 'Released-games RE was introduced in v1.5.1.' : 'No model with both scores is shown.'}</p>`;
   return card('Released vs unreleased games: how much weaker on unseen games?',
     `Both runs are blind. The chip is how much weaker the score on the benchmark's own unreleased games is than on released commercial games (Balatro, Slay the Spire, World of Warcraft and others)${pct ? ', as a percent of the released score' : ', in points'}.`,
@@ -1374,9 +1377,9 @@ function generalHTML(metric, sort, hidden) {
   base.forEach((d) => { d._exp = fit.a + fit.b * d.aaIndex; d._gap = val(d) - d._exp; d._val = val(d); });
   const rows = sortBy(base, sort.key, sort.dir, (d, k) => (k === 'model' ? d.model : k === 'gap' ? d._gap : k === 'aa' ? d.aaIndex : d._val));
   const chart = pairBars(rows, {
-    main: (d) => d._val, ref: (d) => d._exp, value: (d) => fmtScore(d._val), suffix: (d) => (d.reLegacy ? '†' : ''),
+    main: (d) => d._val, ref: (d) => d._exp, value: (d) => fmt2(d._val), suffix: (d) => (d.reLegacy ? '†' : ''),
     chip: (d) => ({ text: signed(d._gap), tone: d._gap > 0 ? 'good' : d._gap < 0 ? 'bad' : '' }),
-    tip: (d) => `${modelEffort(d)} · Gamefeel ${fmtScore(d._val)} · expected from AA index ${d.aaIndex}: ${d._exp.toFixed(1)}`,
+    tip: (d) => `${modelEffort(d)} · Gamefeel ${fmt2(d._val)} · expected from AA index ${d.aaIndex}: ${d._exp.toFixed(2)}`,
   });
   const opts = [['gap', 'Outlier gap'], ['val', 'Gamefeel'], ['aa', 'AA index'], ['model', 'Name']];
   const what = metric === 're' ? 'RE combined' : 'overall';
@@ -1417,7 +1420,7 @@ function progressHTML(hidden) {
     list.forEach((d) => { if (d.gci > best) { const x = X(t(d.firstSeen)); path += path ? `H${x.toFixed(1)}V${Y(d.gci).toFixed(1)}` : `M${x.toFixed(1)} ${Y(d.gci).toFixed(1)}`; best = d.gci; recs.push(d); } });
     if (!path) return { s: '', recs };
     path += `H${X(d1).toFixed(1)}`;
-    const end = ph ? '' : `${label} ${best.toFixed(1)}`;
+    const end = ph ? '' : `${label} ${best.toFixed(2)}`;
     return { s: `<path d="${path}" fill="none" stroke="${color}" stroke-width="3" ${dash ? `stroke-dasharray="${dash}"` : ''}/><text x="${R + 8}" y="${Y(best) + 4}" class="lbl" style="fill:${color}">${end}</text>`, recs, endBox: end ? { x0: R + 6, x1: R + 12 + textW(end, 13, 800), y0: Y(best) - 10, y1: Y(best) + 6 } : null };
   };
   const all = steps(rows, C.azure, '', 'best');
@@ -1441,14 +1444,14 @@ function progressHTML(hidden) {
   rows.forEach((d) => {
     const rec = all.recs.includes(d) || open.recs.includes(d);
     const lp = rec && !ph ? place(X(t(d.firstSeen)), Y(d.gci) - 9, modelEffort(d)) : null;
-    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · GCI ${d.gci.toFixed(1)} · released ${d.firstSeen}${d.openWeights ? ' · open weights' : ''}`)}">` +
+    s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${modelEffort(d)} · GCI ${d.gci.toFixed(2)} · released ${d.firstSeen}${d.openWeights ? ' · open weights' : ''}`)}">` +
       `<circle cx="${X(t(d.firstSeen)).toFixed(1)}" cy="${Y(d.gci).toFixed(1)}" r="${rec ? 7 : 5}" fill="${d.tint}" ${d.openWeights ? '' : 'fill-opacity=".85"'} stroke="#fff" stroke-width="1.5"/>` +
       '</g>';
     if (lp) labels += `<text x="${lp.x.toFixed(1)}" y="${lp.y}" class="tiny" text-anchor="${lp.anchor}" data-m="${esc(d.id)}">${esc(modelEffort(d))}</text>`;
   });
   s += labels;   // drawn after every dot, so no dot covers a label
   const recList = [...all.recs.map((d) => ['best', d]), ...open.recs.map((d) => ['open', d])].sort((a, b) => a[1].firstSeen.localeCompare(b[1].firstSeen));
-  const table = `<table class="plist"><tr><th>Date</th><th>New record</th><th></th><th>GCI</th></tr>${recList.map(([k, d]) => `<tr data-m="${esc(d.id)}"><td>${d.firstSeen}</td><td><span class="nm">${iconHTML(d)}<b>${esc(d.model)}</b><small>${esc(d.effort)}</small></span></td><td><span class="ptag ${k}">${k === 'open' ? 'best open' : 'best overall'}</span></td><td><b>${d.gci.toFixed(1)}</b></td></tr>`).join('')}</table>`;
+  const table = `<table class="plist"><tr><th>Date</th><th>New record</th><th></th><th>GCI</th></tr>${recList.map(([k, d]) => `<tr data-m="${esc(d.id)}"><td>${d.firstSeen}</td><td><span class="nm">${iconHTML(d)}<b>${esc(d.model)}</b><small>${esc(d.effort)}</small></span></td><td><span class="ptag ${k}">${k === 'open' ? 'best open' : 'best overall'}</span></td><td><b>${d.gci.toFixed(2)}</b></td></tr>`).join('')}</table>`;
   const gci = META.gci || {};
   const chain = Array.isArray(gci.chain) ? gci.chain : [];
   const scaleTable = chain.length ? (
@@ -1499,8 +1502,8 @@ function tilesHTML(hidden) {
   const add = (go, title, sub, body, big = false) => tiles.push({ go, title, sub, body, big });
   const rw = activeReWeight(), pks = activeScoreKeys();
   const ovSub = rw === 1.5 ? 'Weighted average, RE at 1.5x' : rw === 1 ? 'Equal average of 7 scores' : 'Equal average of 6 scores';
-  add('explorer/overall/score', 'Overall ranking', ovSub, miniBars(ranked('avg'), (d) => d.avg, (v) => v.toFixed(1), 5), true);
-  SCOPES.slice(1).forEach(([k, l]) => add(`explorer/${k}/score`, l, k === 're' ? 'Feedback on game proposals' : 'Score out of 100', miniBars(ranked(k), (d) => d[k], fmtScore, 3)));
+  add('explorer/overall/score', 'Overall ranking', ovSub, miniBars(ranked('avg'), (d) => d.avg, fmt2, 5), true);
+  SCOPES.slice(1).forEach(([k, l]) => add(`explorer/${k}/score`, l, k === 're' ? 'Feedback on game proposals' : 'Score out of 100', miniBars(ranked(k), (d) => d[k], k === 're' ? fmt2 : fmtScore, 3)));
   const priced = vis.filter((d) => d.complete && d.px != null);
   add('explorer/overall/p2p', 'Price to performance', 'Overall score against price per task, blue = best value line', miniScatter(priced, (d) => d.px, (d) => d.avg));
   const sized = vis.filter((d) => d.complete && d.openWeights && d.size != null);
@@ -1513,7 +1516,7 @@ function tilesHTML(hidden) {
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
   const tb = (d) => valOfPart(d, 're_blind'), ta = (d) => valOfPart(d, 're_assisted');   // as in the view: outdated v1.5.1 runs count too
   const ra = vis.filter((d) => tb(d) != null && ta(d) != null).sort((a, b) => (ta(b) - tb(b)) - (ta(a) - tb(a))).slice(0, 3);
-  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${tb(d)}%;width:${Math.max(1, ta(d) - tb(d))}%;background:${d.tint}"></i></span><em>+${(ta(d) - tb(d)).toFixed(1)}</em></li>`).join('')}</ol>`);
+  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${tb(d)}%;width:${Math.max(1, ta(d) - tb(d))}%;background:${d.tint}"></i></span><em>+${(ta(d) - tb(d)).toFixed(2)}</em></li>`).join('')}</ol>`);
   const ubv = (d) => d.re_blind ?? d.reBlindOld;   // as in the released view: the older blind run stands in until a model is re-run
   const rv = vis.filter((d) => ubv(d) != null && d.re_released > 0).sort((a, b) => (ubv(a) - a.re_released) / a.re_released - (ubv(b) - b.re_released) / b.re_released).slice(0, 3);
   add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((ubv(d) - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
@@ -1523,25 +1526,25 @@ function tilesHTML(hidden) {
     const bhMax = Math.max(HUMAN_EXPERT_BLIND_HARD.v, bhTopV || 0);
     const bhRows = [
       `<li><span class="mn"><b style="color:${HUMAN_EXPERT_BLIND_HARD.color}">Human expert (100+ hrs)</b></span><i style="width:${((HUMAN_EXPERT_BLIND_HARD.v / bhMax) * 100).toFixed(1)}%;background:${HUMAN_EXPERT_BLIND_HARD.color}"></i><em>~60%</em></li>`,
-      ...(bhTop ? [`<li><span class="mn">${iconHTML(bhTop)}<b>${esc(modelEffort(bhTop))}</b></span><i style="width:${Math.max(4, (bhTopV / bhMax) * 100).toFixed(1)}%;background:${bhTop.tint}"></i><em>${fmtScore(bhTopV)}</em></li>`] : []),
+      ...(bhTop ? [`<li><span class="mn">${iconHTML(bhTop)}<b>${esc(modelEffort(bhTop))}</b></span><i style="width:${Math.max(4, (bhTopV / bhMax) * 100).toFixed(1)}%;background:${bhTop.tint}"></i><em>${fmt2(bhTopV)}</em></li>`] : []),
       `<li><span class="mn"><b style="color:${HUMAN_AVG_BLIND_HARD.color}">120 IQ avg gamer</b></span><i style="width:${Math.max(3, (HUMAN_AVG_BLIND_HARD.v / bhMax) * 100).toFixed(1)}%;background:${HUMAN_AVG_BLIND_HARD.color}"></i><em>~2%</em></li>`,
     ].join('');
     add('explorer/re/score/blind-hard-human', 'Blind hard vs human', 'AI vs ~2% avg gamer and ~60% expert', `<ol class="mini">${bhRows}</ol>`);
   }
   const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
   const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
-  add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(1)}`).join(' → ')}</em></li>`).join('')}</ol>`);
+  add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(2)}`).join(' → ')}</em></li>`).join('')}</ol>`);
   const both = vis.filter((d) => d.aaIndex != null && d.avg != null);
   let gen = '';
   if (both.length >= 3) {
     const fit = linFit(both.map((d) => [d.aaIndex, d.avg]));
     const g = both.map((d) => ({ d, gap: d.avg - (fit.a + fit.b * d.aaIndex) })).sort((a, b) => b.gap - a.gap);
-    gen = `<ol class="mini">${[g[0], g[1], g[g.length - 1]].map(({ d, gap }) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="${gap >= 0 ? 'up' : 'dn'}">${gap >= 0 ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(1)}</em></li>`).join('')}</ol>`;
+    gen = `<ol class="mini">${[g[0], g[1], g[g.length - 1]].map(({ d, gap }) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="${gap >= 0 ? 'up' : 'dn'}">${gap >= 0 ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(2)}</em></li>`).join('')}</ol>`;
   }
   add('general', 'Gamefeel vs general capability', 'Who beats their Artificial Analysis index', gen);
   const pg = vis.filter((d) => d.gci != null && d.firstSeen).sort((a, b) => a.firstSeen.localeCompare(b.firstSeen));
   let bestSoFar = -Infinity; const recs = pg.filter((d) => (d.gci > bestSoFar ? ((bestSoFar = d.gci), true) : false));
-  add('progress', 'Progress over time', 'GCI: the best Gamefeel score so far', recs.length ? `<ol class="mini">${recs.slice(-3).reverse().map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="wide">${d.firstSeen.slice(5)} · GCI ${d.gci.toFixed(1)}</em></li>`).join('')}</ol>` : '');
+  add('progress', 'Progress over time', 'GCI: the best Gamefeel score so far', recs.length ? `<ol class="mini">${recs.slice(-3).reverse().map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="wide">${d.firstSeen.slice(5)} · GCI ${d.gci.toFixed(2)}</em></li>`).join('')}</ol>` : '');
   return `<div class="tiles">${tiles.map((t) => `<button type="button" class="tile${t.big ? ' big' : ''}" data-open="${t.go}"><span class="th"><b>${esc(t.title)}</b><span class="arrow">↗</span></span><small>${esc(t.sub)}</small><div class="tb">${t.body}</div></button>`).join('')}</div>`;
 }
 
@@ -1636,7 +1639,7 @@ function renderSidebar() {
     return `<label class="mrow ${on ? '' : 'off'}" data-row="${esc(d.id)}">` +
       `<input type="checkbox" data-hide="${esc(d.id)}" ${on ? 'checked' : ''} />${iconHTML(d)}` +
       `<span class="mtxt"><b>${esc(shortName(d))}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
-      `<span class="mavg">${d.complete ? d.avg.toFixed(1) : 'partial'}</span></label>`;
+      `<span class="mavg">${d.complete ? d.avg.toFixed(2) : 'partial'}</span></label>`;
   }).join('') || '<div class="side-foot">No model matches that filter.</div>';
   $('#shown').textContent = `${DATA.length - viewHidden().size} of ${DATA.length} shown${state.openOnly ? ' · open only' : ''}`;
 }
