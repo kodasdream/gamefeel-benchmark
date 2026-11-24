@@ -1607,7 +1607,7 @@ function subControlsHTML() {   // a second row inside the toolbar, only in the e
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
-      return '<span class="crumb">Pick a view</span><span class="hint">Click a tile to open it full width · ☰ lists every view</span>';
+      return '<span class="crumb">Overview</span><span class="crumb-sub">Pick a view · click any card to open full width</span>';
     case 'explorer':
       // the score to show, grouped the way the benchmark is built (Coding and Creativity have two and three parts), then the chart type
       return `<div class="scopes" role="group" aria-label="Score">${SCOPE_GROUPS.map(([cap, ks]) => `<div class="sg${cap ? ' cap' : ''}">${cap ? `<span class="sgc">${cap}</span>` : ''}<div class="sgb">${ks.map((k) =>
@@ -1619,9 +1619,9 @@ function controlsHTML() {
     case 'speed':
       return `<div class="modes" role="group" aria-label="Speed measure"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}" aria-pressed="${state.metric === 'tps'}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}" aria-pressed="${state.metric === 'min'}">Minutes per task</button></div>`;
     case 'ledger':
-      return '<span class="hint">Click a column heading to sort, click again to reverse</span>';
+      return '<span class="crumb">Full Ledger</span><span class="crumb-sub">Click any column heading to sort</span>';
     case 'glance': case 'rehelp': case 'released': case 'effort': case 'general': case 'progress':
-      return `<span class="crumb">☰ More views · ${esc(EXTRA.find((e) => e[0] === state.tab)[1])}</span><span class="hint">Tick a model on the left to hide it here too</span>`;
+      return `<button type="button" class="crumb-btn" data-open-menu="1" title="Switch view"><span class="crumb-k">☰ More views</span><span class="crumb-sep">·</span><span>${esc(EXTRA.find((e) => e[0] === state.tab)[1])}</span></button>`;
     default: return '';
   }
 }
@@ -1647,8 +1647,9 @@ function render() {
   // the RE view toggle applies to the explorer's RE section only; every other tab and view uses combined
   RE_VIEW = state.tab === 'explorer' && state.scope === 're' ? state.reView : 'combined';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
-  $('#controls').className = 'controls tb';
-  $('#controls').innerHTML = `<div class="tb-main">${controlsHTML()}</div>` +
+  const isProf = state.tab === 'profiles';
+  $('#controls').className = `controls tb${isProf ? ' is-profiles' : ''}`;
+  $('#controls').innerHTML = `<div class="tb-main${isProf ? ' is-profiles' : ''}">${controlsHTML()}</div>` +
     `<div class="tb-side"><button type="button" class="oswitch" role="switch" aria-checked="${state.openOnly}" data-open-only="${state.openOnly ? '0' : '1'}" title="Show only models whose weights are published"><span>Open weights only</span><span class="knob" aria-hidden="true"></span></button></div>` + subControlsHTML();
   const sc = $('#controls .scopes'), on = sc && sc.querySelector('button.on');   // on a phone the score row scrolls: keep the chosen one in view
   if (on && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = on.offsetLeft - (sc.clientWidth - on.offsetWidth) / 2;
@@ -1701,8 +1702,16 @@ function updateMetaAndBanner() {
   const csvHref = (META.version_info && META.version_info.csv) || 'data/gamefeelbench.csv';
   $('#meta').innerHTML = `${DATA.length} entries${META.standard ? ` · standard ${esc(META.standard)}` : ''} · updated ${esc(META.updated)}<br>` +
     `<a href="${esc(csvHref)}" download>Download the data (CSV)</a>`;
-  const sel = $('#verSelect');
-  if (sel && META.standard) sel.value = META.standard;
+  const vVal = $('#verVal');
+  if (vVal && META.standard) {
+    const isLat = !META.is_historical;
+    vVal.textContent = isLat ? `${META.standard} (latest)` : META.standard;
+  }
+  document.querySelectorAll('#verMenu .ver-opt').forEach((b) => {
+    const on = b.dataset.ver === META.standard;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
   document.body.classList.toggle('is-history', Boolean(META.is_historical));
   const ban = $('#verBanner');
   if (!ban) return;
@@ -1768,6 +1777,7 @@ $('#tabs').addEventListener('click', (e) => {
 $('#controls').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const ds = b.dataset;
+  if (ds.openMenu) { e.stopPropagation(); setMenu($('#menu').hidden); return; }
   if (ds.scope) state.scope = ds.scope;
   else if (ds.mode) state.mode = ds.mode;
   else if (ds.review) state.reView = ds.review;
@@ -1844,12 +1854,17 @@ function renderMenu() {
   const item = ([k, l, sub], key) => `<button type="button" data-goto="${k}" class="${state.tab === k ? 'on' : ''}"><b>${esc(l)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}<kbd>${key}</kbd></button>`;
   $('#menu').innerHTML = `<div class="mhead">Views</div>${TABS.map((t, i) => item(t, i + 1)).join('')}<div class="mhead">More views</div>${EXTRA.map((t, i) => item(t, i + 6)).join('')}`;
 }
-const setMenu = (open) => { $('#menu').hidden = !open; $('#menuBtn').setAttribute('aria-expanded', String(open)); };
+const setMenu = (open) => { $('#menu').hidden = !open; $('#menuBtn').setAttribute('aria-expanded', String(open)); if (open) setVerMenu(false); };
+const setVerMenu = (open) => { const m = $('#verMenu'), b = $('#verBtn'); if (!m || !b) return; m.hidden = !open; b.setAttribute('aria-expanded', String(open)); if (open) { $('#menu').hidden = true; $('#menuBtn').setAttribute('aria-expanded', 'false'); } };
 $('#menuBtn').addEventListener('click', (e) => { e.stopPropagation(); setMenu($('#menu').hidden); });
 $('#menu').addEventListener('click', (e) => { const b = e.target.closest('[data-goto]'); if (!b) return; state.tab = b.dataset.goto; setMenu(false); render(); });
-document.addEventListener('click', (e) => { if (!$('#menu').hidden && !e.target.closest('#menu')) setMenu(false); });
+document.addEventListener('click', (e) => {
+  if (!$('#menu').hidden && !e.target.closest('#menu')) setMenu(false);
+  const vm = $('#verMenu');
+  if (vm && !vm.hidden && !e.target.closest('#verDrop')) setVerMenu(false);
+});
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { setMenu(false); return; }
+  if (e.key === 'Escape') { setMenu(false); setVerMenu(false); return; }
   if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
   const i = '123456789'.indexOf(e.key);   // 1-5 tabs, 6-9 the first four extra views (the rest via ☰)
   if (i >= 0) { state.tab = i < 5 ? TABS_KEYS[i] : EXTRA_KEYS[i - 5]; render(); }
@@ -1933,17 +1948,24 @@ async function init() {
     if (latestInfo) META.version_info = latestInfo;
     LATEST_BUNDLE = { rows: DATA, meta: META };
     VERSION_CACHE.set(META.standard, LATEST_BUNDLE);
-    const sel = $('#verSelect');
-    if (sel) {
-      sel.innerHTML = VERSIONS.versions.map((v) =>
-        `<option value="${esc(v.id)}">${esc(v.id)}${v.is_latest ? ' (latest)' : ` · ${esc(v.date)}`}</option>`).join('');
-      sel.value = META.standard;
-      sel.addEventListener('change', () => switchVersion(sel.value));
+    const vBtn = $('#verBtn'), vMenu = $('#verMenu');
+    if (vBtn && vMenu) {
+      const chk = '<svg class="vo-chk" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      vMenu.innerHTML = VERSIONS.versions.map((v) =>
+        `<button type="button" class="ver-opt" role="option" data-ver="${esc(v.id)}" aria-selected="false">` +
+        `<span class="vo-top"><span class="vo-id">${esc(v.id)}</span>${v.is_latest ? '<span class="vo-tag">Latest</span>' : ''}</span>` +
+        `<span class="vo-sub">${esc(v.date)} · ${v.entries} entries</span>${chk}</button>`).join('');
+      vBtn.addEventListener('click', (e) => { e.stopPropagation(); setVerMenu(vMenu.hidden); });
+      vMenu.addEventListener('click', (e) => {
+        const opt = e.target.closest('[data-ver]'); if (!opt) return;
+        setVerMenu(false);
+        if (opt.dataset.ver !== META.standard) switchVersion(opt.dataset.ver);
+      });
     }
     const ban = $('#verBanner');
     if (ban) ban.addEventListener('click', (e) => { const b = e.target.closest('[data-switch-ver]'); if (b) switchVersion(b.dataset.switchVer); });
   } else {
-    const vw = $('.ver-wrap'); if (vw) vw.style.display = 'none';
+    const vd = $('#verDrop'); if (vd) vd.style.display = 'none';
   }
   state.prof = new Set(TOP3());
   updateMetaAndBanner();
