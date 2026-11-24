@@ -53,6 +53,8 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 **Creativity – Visuals:** how good the visuals are for the content models add on their own.
 
+![Visuals Subsection Example — Typecast](assets/visuals-example-typecast.png)
+
 **Creativity – Audio:** how good the sound effects and soundtracks are for the content models add.
 
 **Gamefeel – Reverse-Evaluation (RE):** the model rates the results of other AI models as well as real game development changelogs. It is scored on its mean rating error, ranking accuracy, and score separation between good and bad designs across five subsections:
@@ -63,6 +65,8 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 - **Blind Released:** blind evaluation on proposals for released commercial games (such as Balatro, Slay the Spire, and World of Warcraft), used to measure the gap between seen and unseen games.
 
 **How hard is Blind Hard?** An average 120 IQ human gamer who has never played the unreleased video games being evaluated scores **2%** on the Blind Hard subsection. Even at the frontier, the task stays extremely difficult: the best singular AI model currently scores **7.1%**, and the best AI agent swarm reaches **11.2%**. Capabilities are already past a typical human baseline and trend upward as models improve, while remaining very far from saturation.
+
+![How Reverse-Evaluation (RE) Works](assets/how-re-works.png)
 
 ### How it is graded
 
@@ -125,3 +129,4 @@ Then open [http://localhost:8000](http://localhost:8000) in a browser.
 - `index.html`, `style.css`, `app.js`: the website
 - `data/`: the published data (CSV and one small metadata file)
 - `lab-icons/`: the lab logos, as SVG
+- `assets/`: README explainer graphics
