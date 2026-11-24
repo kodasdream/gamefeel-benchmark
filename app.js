@@ -89,7 +89,7 @@ const SCOPES = [
 const SCOPE_LABEL = Object.fromEntries(SCOPES);
 // Overall averages RE combined only — the explorer's RE view toggle (blind/assisted) never changes that.
 const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (combined, 1.5x weight)` : l)).join(', ');   // the seven subcategories the overall averages
-const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger']];
+const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger'], ['method', 'Method']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
 const NEW_MODELS = ['gpt-6-luna · Medium', 'gpt-6-luna · High', 'HungerG (Suspected Step 6 Flash)', 'GLM-5.4'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
@@ -1548,11 +1548,23 @@ function tilesHTML(hidden) {
   return `<div class="tiles">${tiles.map((t) => `<button type="button" class="tile${t.big ? ' big' : ''}" data-open="${t.go}"><span class="th"><b>${esc(t.title)}</b><span class="arrow">↗</span></span><small>${esc(t.sub)}</small><div class="tb">${t.body}</div></button>`).join('')}</div>`;
 }
 
+/* ---------- method / how it works page ---------- */
+function methodHTML() {
+  return `<div class="method-wrap">
+    <section class="method-sec" id="method-re">
+      <img class="method-img" src="assets/how-re-works.png" alt="How Reverse-Evaluation (RE) Works" />
+    </section>
+    <section class="method-sec" id="method-visuals">
+      <img class="method-img" src="assets/visuals-example-typecast.png" alt="Visuals Subsection Example: Typecast across 6 AI models" />
+    </section>
+  </div>`;
+}
+
 /* ---------- app state ---------- */
 const TABS_KEYS = TABS.map((t) => t[0]);
 const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
 const state = {
-  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined', reLook: 'classic',
+  tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined', reLook: 'classic', methodSec: '',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
   openOnly: false,
   gsort: { key: 'avg', dir: -1 }, hsort: { key: 'gain', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
@@ -1580,6 +1592,7 @@ function buildCurrent() {
     case 'profiles': return radarFig([...state.prof], hidden);
     case 'speed': return speedFig(state.metric, hidden);
     case 'ledger': return ledgerFig(state.sort, hidden);
+    case 'method': return { html: methodHTML() };
     default: return overviewFig(hidden);
   }
 }
@@ -1620,6 +1633,8 @@ function controlsHTML() {
       return `<div class="modes" role="group" aria-label="Speed measure"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}" aria-pressed="${state.metric === 'tps'}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}" aria-pressed="${state.metric === 'min'}">Minutes per task</button></div>`;
     case 'ledger':
       return '<span class="crumb">Full Ledger</span><span class="crumb-sub">Click any column heading to sort</span>';
+    case 'method':
+      return '<span class="crumb">Methodology</span><span class="crumb-sub">How Reverse-Evaluation and Visuals are scored</span>';
     case 'glance': case 'rehelp': case 'released': case 'effort': case 'general': case 'progress':
       return `<button type="button" class="crumb-btn" data-open-menu="1" title="Switch view"><span class="crumb-k">☰ More views</span><span class="crumb-sep">·</span><span>${esc(EXTRA.find((e) => e[0] === state.tab)[1])}</span></button>`;
     default: return '';
@@ -1648,9 +1663,11 @@ function render() {
   RE_VIEW = state.tab === 'explorer' && state.scope === 're' ? state.reView : 'combined';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   const isProf = state.tab === 'profiles';
+  const sideCtrl = state.tab === 'method'
+    ? `<div class="modes" role="group" aria-label="Jump to section"><button type="button" data-msec="re" class="${state.methodSec !== 'visuals' ? 'on' : ''}">Reverse-Evaluation</button><button type="button" data-msec="visuals" class="${state.methodSec === 'visuals' ? 'on' : ''}">Visuals</button></div>`
+    : `<button type="button" class="oswitch" role="switch" aria-checked="${state.openOnly}" data-open-only="${state.openOnly ? '0' : '1'}" title="Show only models whose weights are published"><span>Open weights only</span><span class="knob" aria-hidden="true"></span></button>`;
   $('#controls').className = `controls tb${isProf ? ' is-profiles' : ''}`;
-  $('#controls').innerHTML = `<div class="tb-main${isProf ? ' is-profiles' : ''}">${controlsHTML()}</div>` +
-    `<div class="tb-side"><button type="button" class="oswitch" role="switch" aria-checked="${state.openOnly}" data-open-only="${state.openOnly ? '0' : '1'}" title="Show only models whose weights are published"><span>Open weights only</span><span class="knob" aria-hidden="true"></span></button></div>` + subControlsHTML();
+  $('#controls').innerHTML = `<div class="tb-main${isProf ? ' is-profiles' : ''}">${controlsHTML()}</div><div class="tb-side">${sideCtrl}</div>` + subControlsHTML();
   const sc = $('#controls .scopes'), on = sc && sc.querySelector('button.on');   // on a phone the score row scrolls: keep the chosen one in view
   if (on && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = on.offsetLeft - (sc.clientWidth - on.offsetWidth) / 2;
   const f = buildCurrent();
@@ -1669,7 +1686,13 @@ function render() {
     if (top < y0) { above.forEach((t) => t.remove()); svg.setAttribute('viewBox', `0 ${top - 8} ${f.W} ${f.H - top + 8}`); }
   }
   renderMenu();
-  $('#stage').scrollTop = 0;
+  if (state.tab === 'method' && state.methodSec) {
+    const target = $(`#method-${state.methodSec}`);
+    if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
+    else $('#stage').scrollTop = 0;
+  } else {
+    $('#stage').scrollTop = 0;
+  }
   applySpot();
   renderSidebar();
   writeHash();
@@ -1683,6 +1706,7 @@ function readHash() {
     if (a === 're') { state.reLook = c === 'board' ? 'board' : 'classic'; state.reView = RE_VIEWS.includes(c) ? c : 'combined'; }
   }
   if (tab === 'speed' && (a === 'min' || a === 'tps')) state.metric = a;
+  if (tab === 'method') state.methodSec = (a === 're' || a === 'visuals') ? a : '';
 }
 function urlWithHash(h) {
   const qs = META.is_historical && META.standard ? `?v=${encodeURIComponent(META.standard)}` : '';
@@ -1696,6 +1720,7 @@ function writeHash() {
     else if (state.scope === 're' && state.reView !== 'combined' && activeReViews().includes(state.reView)) h += `/${state.reView}`;
   }
   if (state.tab === 'speed') h += `/${state.metric}`;
+  if (state.tab === 'method' && state.methodSec) h += `/${state.methodSec}`;
   history.replaceState(null, '', urlWithHash(h));
 }
 function updateMetaAndBanner() {
@@ -1778,6 +1803,7 @@ $('#controls').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const ds = b.dataset;
   if (ds.openMenu) { e.stopPropagation(); setMenu($('#menu').hidden); return; }
+  if (ds.msec) { state.methodSec = ds.msec; render(); return; }
   if (ds.scope) state.scope = ds.scope;
   else if (ds.mode) state.mode = ds.mode;
   else if (ds.review) state.reView = ds.review;
@@ -1866,8 +1892,8 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { setMenu(false); setVerMenu(false); return; }
   if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
-  const i = '123456789'.indexOf(e.key);   // 1-5 tabs, 6-9 the first four extra views (the rest via ☰)
-  if (i >= 0) { state.tab = i < 5 ? TABS_KEYS[i] : EXTRA_KEYS[i - 5]; render(); }
+  const i = '123456789'.indexOf(e.key);   // 1-6 tabs, 7-9 the first three extra views (the rest via ☰)
+  if (i >= 0) { state.tab = i < TABS_KEYS.length ? TABS_KEYS[i] : EXTRA_KEYS[i - TABS_KEYS.length]; render(); }
 });
 let wasPhone = isPhone();
 addEventListener('resize', () => { if (isPhone() !== wasPhone) { wasPhone = isPhone(); render(); } });

@@ -51,9 +51,7 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 **Creativity – Ideas:** how creative and original the ideas are when models add new content to the games on their own.
 
-**Creativity – Visuals:** how good the visuals are for the content models add on their own.
-
-![Visuals Subsection Example — Typecast](assets/visuals-example-typecast.png)
+**Creativity – Visuals:** how good the visuals are for the content models add on their own. See a visual scoring example on the [Methodology page](https://kodasdream.github.io/gamefeel-benchmark/#method/visuals).
 
 **Creativity – Audio:** how good the sound effects and soundtracks are for the content models add.
 
@@ -66,7 +64,7 @@ For the gamefeel and creativity tests, models are told to add 30 to 100 new item
 
 **How hard is Blind Hard?** An average 120 IQ human gamer who has never played the unreleased video games being evaluated scores **2%** on the Blind Hard subsection. Even at the frontier, the task stays extremely difficult: the best singular AI model currently scores **7.1%**, and the best AI agent swarm reaches **11.2%**. Capabilities are already past a typical human baseline and trend upward as models improve, while remaining very far from saturation.
 
-![How Reverse-Evaluation (RE) Works](assets/how-re-works.png)
+For a visual walkthrough of how Reverse-Evaluation and the Combined RE formula work, see the [Methodology page](https://kodasdream.github.io/gamefeel-benchmark/#method/re).
 
 ### How it is graded
 
@@ -129,4 +127,4 @@ Then open [http://localhost:8000](http://localhost:8000) in a browser.
 - `index.html`, `style.css`, `app.js`: the website
 - `data/`: the published data (CSV and one small metadata file)
 - `lab-icons/`: the lab logos, as SVG
-- `assets/`: README explainer graphics
+- `assets/`: visual explainer graphics shown on the website's Method page

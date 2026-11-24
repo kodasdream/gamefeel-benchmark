@@ -389,6 +389,11 @@ ol.rank .rn, ol.rank .rn .nm { min-width: 0; overflow: hidden; }
 .controls.tb .modes button.on { background: #fff; }
 @media (max-width: 700px) { #stage .sortbar .seg { flex-wrap: wrap; border-radius: 12px; } #stage .sortbar .seg button { border-radius: 9px; } }
 
+/* ---------- methodology page ---------- */
+.method-wrap { display: grid; gap: 20px; max-width: 960px; margin: 0 auto; }
+.method-sec { scroll-margin-top: 16px; }
+.method-img { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid #dfe5f0; box-shadow: var(--shadow); }
+
 /* ---------- custom version dropdown & historical banner ---------- */
 .ver-drop { position: relative; flex-shrink: 0; }
 .ver-btn {
