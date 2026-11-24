@@ -4,9 +4,9 @@
   "versions": [
     {
       "id": "v1.5.2",
-      "date": "2026-11-23",
-      "entries": 66,
-      "complete": 34,
+      "date": "2026-11-24",
+      "entries": 70,
+      "complete": 33,
       "summary": "5-part RE (blind, blind hard, assisted, assisted hard, released) on cleaned v5.6/v5.6.1 handoffs.",
       "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
       "csv": "data/gamefeelbench.csv",
@@ -23,22 +23,22 @@
       "re_mode": "v152",
       "is_latest": true,
       "gci_fit": {
-        "a": 1.0635,
-        "b": 0.083,
-        "r2": 0.9757,
-        "anchors": 32,
+        "a": 1.0642,
+        "b": 0.071,
+        "r2": 0.9756,
+        "anchors": 31,
         "ref": "v1.5.1"
       },
       "transition": {
         "from": "v1.5.1",
         "to": "v1.5.2",
-        "anchors": 32,
-        "mean_from": 36.27,
-        "mean_to": 35.57,
-        "delta_mean": -0.69,
-        "delta_median": -0.22,
-        "ratio": 0.9809,
-        "r2": 0.9757
+        "anchors": 31,
+        "mean_from": 36.12,
+        "mean_to": 35.42,
+        "delta_mean": -0.7,
+        "delta_median": -0.21,
+        "ratio": 0.9808,
+        "r2": 0.9756
       }
     },
     {

@@ -1,6 +1,6 @@
 {
-  "updated": "2026-11-23 00:36",
-  "entries": 66,
+  "updated": "2026-11-24 02:20",
+  "entries": 70,
   "standard": "v1.5.2",
   "score_keys": [
     "create",
@@ -16,10 +16,10 @@
   "gci": {
     "base": "v1.5",
     "standard": "v1.5.2",
-    "a": 1.0635,
-    "b": 0.083,
-    "r2": 0.9757,
-    "anchors": 32,
+    "a": 1.0642,
+    "b": 0.071,
+    "r2": 0.9756,
+    "anchors": 31,
     "chain": [
       {
         "id": "v1.2",
@@ -133,26 +133,26 @@
       },
       {
         "id": "v1.5.2",
-        "date": "2026-11-23",
-        "entries": 66,
+        "date": "2026-11-24",
+        "entries": 70,
         "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
         "gci_fit": {
-          "a": 1.0635,
-          "b": 0.083,
-          "r2": 0.9757,
-          "anchors": 32,
+          "a": 1.0642,
+          "b": 0.071,
+          "r2": 0.9756,
+          "anchors": 31,
           "ref": "v1.5.1"
         },
         "transition": {
           "from": "v1.5.1",
           "to": "v1.5.2",
-          "anchors": 32,
-          "mean_from": 36.27,
-          "mean_to": 35.57,
-          "delta_mean": -0.69,
-          "delta_median": -0.22,
-          "ratio": 0.9809,
-          "r2": 0.9757
+          "anchors": 31,
+          "mean_from": 36.12,
+          "mean_to": 35.42,
+          "delta_mean": -0.7,
+          "delta_median": -0.21,
+          "ratio": 0.9808,
+          "r2": 0.9756
         }
       }
     ]
@@ -167,19 +167,19 @@
     },
     "scale": {
       "re_blind": 1.0,
-      "re_blind_hard": 0.2058,
-      "re_assisted": 1.7583,
-      "re_assisted_hard": 0.4959,
-      "re_released": 2.4611
+      "re_blind_hard": 0.1985,
+      "re_assisted": 1.7467,
+      "re_assisted_hard": 0.4926,
+      "re_released": 2.5922
     },
     "pairs": {
-      "re_blind": 20,
-      "re_blind_hard": 20,
-      "re_assisted": 17,
-      "re_assisted_hard": 17,
-      "re_released": 16
+      "re_blind": 24,
+      "re_blind_hard": 24,
+      "re_assisted": 20,
+      "re_assisted_hard": 20,
+      "re_released": 18
     },
-    "legacy": 45,
+    "legacy": 44,
     "v151_to_v152": {
       "re_blind": 0.7415,
       "re_blind_hard": 0.4723,
