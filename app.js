@@ -742,7 +742,7 @@ const LABEL_STATS = { fallback: 0 };   // labels that found no clear slot (check
 function placeLabels(pts, T, B, WP, obstacles = pts) {   // obstacles: every dot a label must keep clear of (default: the labelled ones)
   const R = WP - 80, placed = [];
   const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-  const dots = obstacles.map((p) => ({ x0: p.x - 38, x1: p.x + 38, y0: p.y - 38, y1: p.y + 38 }));
+  const dots = obstacles.map((p) => (p.x0 != null ? p : { x0: p.x - 38, x1: p.x + 38, y0: p.y - 38, y1: p.y + 38 }));   // a ready box (e.g. a line) is used as is
   const boxFor = (p, right, ly) => {   // the lab logo sits in the point, so the label is text only
     const textX = right ? p.x + 46 : p.x - 46;
     const x0 = right ? textX : textX - p.w, x1 = right ? textX + p.w : textX;
@@ -818,10 +818,13 @@ function ppFig(scope, hidden) {
   s += `<text x="${(L + R) / 2}" y="${B + 86}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}">price per task (log scale) · free models are drawn at $0.02</text>`;
   s += `<text x="34" y="${(T + B) / 2}" font-size="22" font-weight="600" text-anchor="middle" fill="${C.soft}" transform="rotate(-90 34 ${(T + B) / 2})">score (out of 100)</text>`;
 
-  // pareto frontier: straight segments between the non-dominated points
-  if (front.length > 1) {
-    s += valueBand(front.map((d) => [X(d.px), Y(scoreOf(d, scope))]), B);
-    s += `<path d="${front.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
+  // pareto frontier: straight segments between the non-dominated points, then flat at the best score to the
+  // right edge, since paying more past the best model buys no higher score
+  const fpath = front.map((d) => [X(d.px), Y(scoreOf(d, scope))]);
+  if (fpath.length && fpath[fpath.length - 1][0] < R - 1) fpath.push([R, fpath[fpath.length - 1][1]]);
+  if (fpath.length > 1) {
+    s += valueBand(fpath, B);
+    s += `<path d="${fpath.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join('')}" fill="none" stroke="${C.azure}" stroke-width="6" stroke-linejoin="round" opacity=".85"/>`;
   }
   // same model at several effort levels: a dotted line joins them
   const fam = {};
@@ -837,7 +840,9 @@ function ppFig(scope, hidden) {
     const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScope(scope, sc)}`;
     return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
   });
-  const pts = placeLabels(all.filter((p) => front.includes(p.d)), T, B, WP, all);
+  // the flat end of the frontier is kept clear of labels too, so no name sits on the line
+  const flat = fpath.length > 1 && fpath[fpath.length - 1][0] === R ? [{ x0: fpath[fpath.length - 2][0] + 38, x1: R, y0: fpath[fpath.length - 1][1] - 8, y1: fpath[fpath.length - 1][1] + 8 }] : [];
+  const pts = placeLabels(all.filter((p) => front.includes(p.d)), T, B, WP, [...all, ...flat]);
   all.forEach((p) => {
     const d = p.d;
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScope(scope, p.sc)}`)}">`;
