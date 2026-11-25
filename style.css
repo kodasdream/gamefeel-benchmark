@@ -447,13 +447,67 @@ table.plist .vbtn.cur { background: var(--track); border-color: transparent; col
 table.plist td.num { font-variant-numeric: tabular-nums; font-weight: 700; }
 table.plist td.wrap { white-space: normal; min-width: 180px; color: var(--ink-soft); font-size: 12.5px; }
 #exportStage .vbtn { display: none; }
+/* ---------- approved UI polish (02, 06, 08, 09) ---------- */
+.brand-short { display: none; }
+.tabs .tab-ico { display: none; }
+.mob-only { display: none; }
+.meta { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-faint); font-weight: 600; text-align: right; line-height: 1.2; white-space: nowrap; flex-shrink: 0; }
+.meta-txt { font-variant-numeric: tabular-nums; }
+.csv-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 9px;
+  border: 1px solid var(--line); background: #fff; color: var(--azure);
+  font-size: 12px; font-weight: 800; text-decoration: none; line-height: 1;
+  transition: background .12s, border-color .12s;
+}
+.csv-btn:hover { background: #eef3ff; border-color: rgba(43,108,238,.35); text-decoration: none; }
+.csv-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+@media (max-width: 1280px) { .meta-txt { display: none; } }
+@media (max-width: 1120px) { .ver-lat { display: none; } }
+
+.controls.tb.is-slim {
+  background: transparent; border: 0; box-shadow: none;
+  margin: 6px 20px 0; padding: 2px 2px 4px; min-height: 30px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.controls.tb.is-slim .tb-side { justify-self: end; }
+.slim-cap { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+
+.lab-pills { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 14px 10px; border-bottom: 1px solid var(--line); }
+.lab-pills button {
+  border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 3px 8px;
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.lab-pills button:hover { background: var(--track); color: var(--ink); }
+.lab-pills button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.mavg {
+  font-size: 12px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums;
+  background: var(--zebra); border: 1px solid var(--line); border-radius: 7px;
+  padding: 3px 7px; min-width: 48px; text-align: center;
+}
+.mavg.is-part { color: var(--ink-faint); font-weight: 700; font-size: 11px; }
+
 @media (max-width: 700px) {
   header.top { gap: 8px; padding: 0 10px; min-height: 50px; }
-  .brand { font-size: 14.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  #sideToggle { padding: 5px 8px; font-size: 11.5px; gap: 4px; flex-shrink: 0; }
+  .brand { font-size: 15.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .brand-full { display: none; }
+  .brand-short { display: inline; }
+  .brand small { display: none; }
+  #sideToggle { padding: 5px 9px; font-size: 12px; gap: 5px; flex-shrink: 0; }
   .ver-drop { margin-left: auto; }
-  .ver-btn { padding: 5px 8px; font-size: 12px; gap: 5px; }
-  .ver-lbl { display: none; }
+  .ver-btn { padding: 5px 9px; font-size: 12.5px; gap: 5px; }
+  .ver-lbl, .ver-lat { display: none; }
   .ver-menu { min-width: 220px; }
   .ver-banner { margin: 6px 12px 0; padding: 8px 10px; font-size: 12px; }
+  .meta { display: none; }
+  .controls.tb.is-slim { margin: 6px 12px 0; padding: 2px 2px; min-height: 28px; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .controls.tb.is-slim .tb-main { flex-direction: row; align-items: center; }
+  .controls.tb.is-slim .tb-side { justify-self: end; }
+  .desk-only { display: none; }
+  .mob-only { display: inline; }
+  .tabs { padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); gap: 2px; background: rgba(255,255,255,.97); border-top: 1px solid #dfe5f0; }
+  .tabs button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 2px; border-radius: 10px; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); }
+  .tabs .tab-ico { display: inline-flex; width: 18px; height: 18px; }
+  .tabs .tab-ico svg { width: 18px; height: 18px; display: block; }
+  .tabs button.on { background: #eef3ff; color: var(--azure); box-shadow: none; border-radius: 10px; }
 }

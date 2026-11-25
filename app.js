@@ -1565,7 +1565,7 @@ const TABS_KEYS = TABS.map((t) => t[0]);
 const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).slice(0, 3).map((d) => d.id);
 const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined', reLook: 'classic', methodSec: '',
-  sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null,
+  sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null, labFilter: 'all',
   openOnly: false,
   gsort: { key: 'avg', dir: -1 }, hsort: { key: 'gain', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
@@ -1620,7 +1620,7 @@ function subControlsHTML() {   // a second row inside the toolbar, only in the e
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
-      return '<span class="crumb">Overview</span><span class="crumb-sub">Pick a view · click any card to open full width</span>';
+      return '<span class="slim-cap"><span class="desk-only">Overview · click any card to explore</span><span class="mob-only">Overview</span></span>';
     case 'explorer':
       // the score to show, grouped the way the benchmark is built (Coding and Creativity have two and three parts), then the chart type
       return `<div class="scopes" role="group" aria-label="Score">${SCOPE_GROUPS.map(([cap, ks]) => `<div class="sg${cap ? ' cap' : ''}">${cap ? `<span class="sgc">${cap}</span>` : ''}<div class="sgb">${ks.map((k) =>
@@ -1632,7 +1632,7 @@ function controlsHTML() {
     case 'speed':
       return `<div class="modes" role="group" aria-label="Speed measure"><button type="button" data-metric="tps" class="${state.metric === 'tps' ? 'on' : ''}" aria-pressed="${state.metric === 'tps'}">Tokens per second</button><button type="button" data-metric="min" class="${state.metric === 'min' ? 'on' : ''}" aria-pressed="${state.metric === 'min'}">Minutes per task</button></div>`;
     case 'ledger':
-      return '<span class="crumb">Full Ledger</span><span class="crumb-sub">Click any column heading to sort</span>';
+      return '<span class="slim-cap"><span class="desk-only">Full ledger · click any column heading to sort</span><span class="mob-only">Full ledger</span></span>';
     case 'method':
       return '<span class="crumb">Methodology</span><span class="crumb-sub">How Reverse-Evaluation and Visuals are scored</span>';
     case 'glance': case 'rehelp': case 'released': case 'effort': case 'general': case 'progress':
@@ -1641,32 +1641,55 @@ function controlsHTML() {
   }
 }
 
+const LAB_BUCKETS = [
+  ['all', 'All', () => true],
+  ['google', 'Google', (d) => /google|deepmind/i.test(d.lab)],
+  ['anthropic', 'Anthropic', (d) => /anthropic/i.test(d.lab)],
+  ['openai', 'OpenAI', (d) => /openai/i.test(d.lab)],
+  ['alibaba', 'Alibaba', (d) => /alibaba|qwen/i.test(d.lab)],
+  ['deepseek', 'DeepSeek', (d) => /deepseek/i.test(d.lab)],
+  ['other', 'Other', (d) => !/google|deepmind|anthropic|openai|alibaba|qwen|deepseek/i.test(d.lab)],
+];
+function sidebarFilteredList() {
+  const q = $('#q').value.trim().toLowerCase();
+  const bucket = LAB_BUCKETS.find(([k]) => k === state.labFilter) || LAB_BUCKETS[0];
+  return DATA.filter((d) => bucket[2](d) && (!q || `${d.model} ${d.effort} ${d.lab}`.toLowerCase().includes(q)));
+}
 function applySpot() {
   document.querySelectorAll('#stage [data-m]').forEach((el) => {
     el.style.opacity = !state.spot || el.dataset.m === state.spot ? '' : '0.16';
   });
 }
 function renderSidebar() {
-  const q = $('#q').value.trim().toLowerCase();
-  const list = DATA.filter((d) => !q || `${d.model} ${d.effort} ${d.lab}`.toLowerCase().includes(q));
+  const pillsEl = $('#labPills');
+  if (pillsEl) {
+    pillsEl.innerHTML = LAB_BUCKETS.map(([k, l, fn]) => {
+      const cnt = k === 'all' ? DATA.length : DATA.filter(fn).length;
+      if (k !== 'all' && cnt === 0) return '';
+      const on = state.labFilter === k;
+      return `<button type="button" data-lab="${k}" class="${on ? 'on' : ''}" aria-pressed="${on}">${k === 'all' ? `All (${cnt})` : esc(l)}</button>`;
+    }).join('');
+  }
+  const list = sidebarFilteredList();
   $('#modelList').innerHTML = list.map((d) => {
     const on = !state.hidden.has(d.id);
     return `<label class="mrow ${on ? '' : 'off'}" data-row="${esc(d.id)}">` +
       `<input type="checkbox" data-hide="${esc(d.id)}" ${on ? 'checked' : ''} />${iconHTML(d)}` +
       `<span class="mtxt"><b>${esc(shortName(d))}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
-      `<span class="mavg">${d.complete ? d.avg.toFixed(2) : 'partial'}</span></label>`;
+      `<span class="mavg${d.complete ? '' : ' is-part'}">${d.complete ? d.avg.toFixed(2) : 'partial'}</span></label>`;
   }).join('') || '<div class="side-foot">No model matches that filter.</div>';
-  $('#shown').textContent = `${DATA.length - viewHidden().size} of ${DATA.length} shown${state.openOnly ? ' · open only' : ''}`;
+  $('#shown').textContent = `${DATA.length - viewHidden().size} / ${DATA.length} shown${state.openOnly ? ' · open' : ''}`;
 }
 function render() {
   // the RE view toggle applies to the explorer's RE section only; every other tab and view uses combined
   RE_VIEW = state.tab === 'explorer' && state.scope === 're' ? state.reView : 'combined';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   const isProf = state.tab === 'profiles';
+  const isSlim = state.tab === 'overview' || state.tab === 'ledger';
   const sideCtrl = state.tab === 'method'
     ? `<div class="modes" role="group" aria-label="Jump to section"><button type="button" data-msec="re" class="${state.methodSec !== 'visuals' ? 'on' : ''}">Reverse-Evaluation</button><button type="button" data-msec="visuals" class="${state.methodSec === 'visuals' ? 'on' : ''}">Visuals</button></div>`
     : `<button type="button" class="oswitch" role="switch" aria-checked="${state.openOnly}" data-open-only="${state.openOnly ? '0' : '1'}" title="Show only models whose weights are published"><span>Open weights only</span><span class="knob" aria-hidden="true"></span></button>`;
-  $('#controls').className = `controls tb${isProf ? ' is-profiles' : ''}`;
+  $('#controls').className = `controls tb${isProf ? ' is-profiles' : ''}${isSlim ? ' is-slim' : ''}`;
   $('#controls').innerHTML = `<div class="tb-main${isProf ? ' is-profiles' : ''}">${controlsHTML()}</div><div class="tb-side">${sideCtrl}</div>` + subControlsHTML();
   const sc = $('#controls .scopes'), on = sc && sc.querySelector('button.on');   // on a phone the score row scrolls: keep the chosen one in view
   if (on && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = on.offsetLeft - (sc.clientWidth - on.offsetWidth) / 2;
@@ -1723,14 +1746,22 @@ function writeHash() {
   if (state.tab === 'method' && state.methodSec) h += `/${state.methodSec}`;
   history.replaceState(null, '', urlWithHash(h));
 }
+function shortDate(s) {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(s || '');
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${MON[Number(m[2]) - 1] || m[2]} ${Number(m[3])}`;
+}
 function updateMetaAndBanner() {
   const csvHref = (META.version_info && META.version_info.csv) || 'data/gamefeelbench.csv';
-  $('#meta').innerHTML = `${DATA.length} entries${META.standard ? ` · standard ${esc(META.standard)}` : ''} · updated ${esc(META.updated)}<br>` +
-    `<a href="${esc(csvHref)}" download>Download the data (CSV)</a>`;
+  $('#meta').innerHTML = `<span class="meta-txt">${DATA.length} models · ${esc(shortDate(META.updated))}</span>` +
+    `<a class="csv-btn" href="${esc(csvHref)}" download title="Download ${esc(META.standard || 'benchmark')} data as CSV"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v7.2M4 6.6 7 9.6l3-3M2.5 11.8h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>CSV</a>`;
   const vVal = $('#verVal');
   if (vVal && META.standard) {
     const isLat = !META.is_historical;
-    vVal.textContent = isLat ? `${META.standard} (latest)` : META.standard;
+    vVal.innerHTML = isLat
+      ? `${esc(META.standard)}<span class="ver-lat"> (latest)</span>`
+      : esc(META.standard);
   }
   document.querySelectorAll('#verMenu .ver-opt').forEach((b) => {
     const on = b.dataset.ver === META.standard;
@@ -1794,7 +1825,15 @@ async function switchVersion(verId) {
 const toggle = (set, v) => (set.has(v) ? set.delete(v) : set.add(v));
 
 /* ---------- events ---------- */
-$('#tabs').innerHTML = TABS.map(([k, l], i) => `<button type="button" data-tab="${k}">${l}<kbd>${i + 1}</kbd></button>`).join('');
+const TAB_ICON = {
+  overview: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="3" width="5.8" height="5.8" rx="1.4"/><rect x="11.2" y="3" width="5.8" height="5.8" rx="1.4"/><rect x="3" y="11.2" width="5.8" height="5.8" rx="1.4"/><rect x="11.2" y="11.2" width="5.8" height="5.8" rx="1.4"/></svg>',
+  explorer: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 16v-4.5M10 16V5M15 16V9.5"/></svg>',
+  profiles: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><polygon points="10,2.8 17,7.8 14.3,16.2 5.7,16.2 3,7.8"/></svg>',
+  speed: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2.5 4.8 11h4.8l-.6 6.5L15.2 9h-4.8z"/></svg>',
+  ledger: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13"/></svg>',
+  method: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h5a2 2 0 0 1 2 2v9.5a1.5 1.5 0 0 0-1.5-1.5h-5.5zM16.5 4.5h-5a2 2 0 0 0-2 2v9.5a1.5 1.5 0 0 1 1.5-1.5h5.5z"/></svg>',
+};
+$('#tabs').innerHTML = TABS.map(([k, l], i) => `<button type="button" data-tab="${k}"><span class="tab-ico" aria-hidden="true">${TAB_ICON[k] || ''}</span><span class="tab-lbl">${l}</span><kbd>${i + 1}</kbd></button>`).join('');
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   state.tab = b.dataset.tab; render();
@@ -1855,8 +1894,22 @@ $('#modelList').addEventListener('mouseover', (e) => {
 });
 $('#modelList').addEventListener('mouseleave', () => { state.spot = null; applySpot(); });
 $('#q').addEventListener('input', renderSidebar);
-$('#showAll').addEventListener('click', () => { state.hidden.clear(); render(); });
-$('#hideAll').addEventListener('click', () => { state.hidden = new Set(DATA.map((d) => d.id)); render(); });
+$('#labPills').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lab]'); if (!b) return;
+  state.labFilter = b.dataset.lab;
+  renderSidebar();
+});
+$('#showAll').addEventListener('click', () => {
+  const list = sidebarFilteredList();
+  if (list.length === DATA.length) state.hidden.clear();
+  else list.forEach((d) => state.hidden.delete(d.id));
+  render();
+});
+$('#hideAll').addEventListener('click', () => {
+  const list = sidebarFilteredList();
+  list.forEach((d) => state.hidden.add(d.id));
+  render();
+});
 /* Collapsible model sidebar: give the charts the full width on demand (and start collapsed on small screens). */
 const setSide = (show) => {
   $('#app').classList.toggle('no-side', !show);
