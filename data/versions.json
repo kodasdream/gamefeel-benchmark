@@ -4,8 +4,8 @@
   "versions": [
     {
       "id": "v1.5.2",
-      "date": "2026-11-24",
-      "entries": 71,
+      "date": "2026-11-25",
+      "entries": 73,
       "complete": 33,
       "summary": "5-part RE (blind, blind hard, assisted, assisted hard, released) on cleaned v5.6/v5.6.1 handoffs.",
       "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
@@ -23,9 +23,9 @@
       "re_mode": "v152",
       "is_latest": true,
       "gci_fit": {
-        "a": 1.0648,
-        "b": 0.062,
-        "r2": 0.9757,
+        "a": 1.065,
+        "b": 0.057,
+        "r2": 0.9758,
         "anchors": 31,
         "ref": "v1.5.1"
       },
@@ -35,10 +35,10 @@
         "anchors": 31,
         "mean_from": 36.12,
         "mean_to": 35.41,
-        "delta_mean": -0.7,
+        "delta_mean": -0.71,
         "delta_median": -0.22,
         "ratio": 0.9805,
-        "r2": 0.9757
+        "r2": 0.9758
       }
     },
     {

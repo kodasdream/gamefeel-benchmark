@@ -92,7 +92,7 @@ const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (co
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger'], ['method', 'Method']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
-const NEW_MODELS = ['gpt-6-luna · Medium', 'gpt-6-luna · High', 'HungerG (Suspected Step 6 Flash)', 'GLM-5.4'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = ['gpt-6-astra-pro', 'Inkling-2-Mini'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => !META.is_historical && (NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`));   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
@@ -676,7 +676,8 @@ function reSingleFigInner(view) {
   const chart = columnChart(items, { top: topFor([...lines0, '']), ...fitAxis(rows.length ? valOfPart(rows[rows.length - 1], key) : 1), unit: 'score', refLines, empty: `No model has a ${RE_LABEL[view].toLowerCase()} score yet.` });
   const lines = [...lines0,
     `Best reasoning effort per model, all ${rows.length} models. Scale 0 to the best score; price per task under each column.`];
-  const foot = footNotes([LEGACY_MARK ? legacyFootnote(rows) : null].filter(Boolean), chart.H);
+  const subset = rows.filter((d) => d.reNote);
+  const foot = footNotes([subset.length ? reFootnote(subset) : null, LEGACY_MARK ? legacyFootnote(rows) : null].filter(Boolean), chart.H);
   return { W: WC, H: foot.H, body: frame(WC, foot.H, `GAMEFEEL · RE (${RE_LABEL[view].toUpperCase()}) · SCORES`, lines) + chart.body + foot.body, wide: true };
 }
 
@@ -788,6 +789,8 @@ function ppFig(scope, hidden) {
   const front = paretoFront(rows, scope);
   const notes = [];
   if (unpriced.length) notes.push(`Not shown, no price given: ${namesOf(unpriced)}.`);
+  const noted = scope === 're' ? rows.filter((d) => d.reNote) : [];
+  if (noted.length) notes.push(reFootnote(noted));
   const noteLines = notes.flatMap((t) => wrapText(t, 22, 600, WP - 128));
   const B = 1530, H = 1700 + 36 * Math.max(0, noteLines.length - 1);
   const ys = rows.map((d) => scoreOf(d, scope));

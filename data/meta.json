@@ -1,6 +1,6 @@
 {
-  "updated": "2026-11-24 03:35",
-  "entries": 71,
+  "updated": "2026-11-25 23:53",
+  "entries": 73,
   "standard": "v1.5.2",
   "score_keys": [
     "create",
@@ -16,9 +16,9 @@
   "gci": {
     "base": "v1.5",
     "standard": "v1.5.2",
-    "a": 1.0648,
-    "b": 0.062,
-    "r2": 0.9757,
+    "a": 1.065,
+    "b": 0.057,
+    "r2": 0.9758,
     "anchors": 31,
     "chain": [
       {
@@ -133,13 +133,13 @@
       },
       {
         "id": "v1.5.2",
-        "date": "2026-11-24",
-        "entries": 71,
+        "date": "2026-11-25",
+        "entries": 73,
         "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
         "gci_fit": {
-          "a": 1.0648,
-          "b": 0.062,
-          "r2": 0.9757,
+          "a": 1.065,
+          "b": 0.057,
+          "r2": 0.9758,
           "anchors": 31,
           "ref": "v1.5.1"
         },
@@ -149,10 +149,10 @@
           "anchors": 31,
           "mean_from": 36.12,
           "mean_to": 35.41,
-          "delta_mean": -0.7,
+          "delta_mean": -0.71,
           "delta_median": -0.22,
           "ratio": 0.9805,
-          "r2": 0.9757
+          "r2": 0.9758
         }
       }
     ]
@@ -167,17 +167,17 @@
     },
     "scale": {
       "re_blind": 1.0,
-      "re_blind_hard": 0.1985,
-      "re_assisted": 1.7467,
-      "re_assisted_hard": 0.4926,
-      "re_released": 2.4857
+      "re_blind_hard": 0.2012,
+      "re_assisted": 1.7396,
+      "re_assisted_hard": 0.4908,
+      "re_released": 2.4773
     },
     "pairs": {
-      "re_blind": 24,
-      "re_blind_hard": 24,
-      "re_assisted": 20,
-      "re_assisted_hard": 20,
-      "re_released": 19
+      "re_blind": 26,
+      "re_blind_hard": 26,
+      "re_assisted": 21,
+      "re_assisted_hard": 21,
+      "re_released": 20
     },
     "legacy": 44,
     "v151_to_v152": {
