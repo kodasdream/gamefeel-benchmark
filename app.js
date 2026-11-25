@@ -739,10 +739,10 @@ const textW = (t, size, weight) => {
 /* Places each point label where it displaces least: nearest slot above or below the dot, on either side.
    A label must stay inside the plot and clear of every other label, dot and icon. */
 const LABEL_STATS = { fallback: 0 };   // labels that found no clear slot (checked by the test run)
-function placeLabels(pts, T, B, WP) {
+function placeLabels(pts, T, B, WP, obstacles = pts) {   // obstacles: every dot a label must keep clear of (default: the labelled ones)
   const R = WP - 80, placed = [];
   const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-  const dots = pts.map((p) => ({ x0: p.x - 38, x1: p.x + 38, y0: p.y - 38, y1: p.y + 38 }));
+  const dots = obstacles.map((p) => ({ x0: p.x - 38, x1: p.x + 38, y0: p.y - 38, y1: p.y + 38 }));
   const boxFor = (p, right, ly) => {   // the lab logo sits in the point, so the label is text only
     const textX = right ? p.x + 46 : p.x - 46;
     const x0 = right ? textX : textX - p.w, x1 = right ? textX + p.w : textX;
@@ -779,7 +779,7 @@ function ppFig(scope, hidden) {
   const title = `${figTitle(scope)} · PRICE TO PERFORMANCE`;
   const lines = [
     'Price per task against score, log scale. Up and to the left is cheaper and higher.',
-    'Blue ring and line: pareto frontier, no model on it is both cheaper and higher. Dotted = effort levels.',
+    'Blue ring and line: pareto frontier, named; no model beats it on both price and score. Dotted = effort levels.',
   ];
   if (scope === 're') lines.push(reContextLine());
   const rows = DATA.filter((d) => !hidden.has(d.id) && scoreOf(d, scope) != null && d.price != null);
@@ -832,14 +832,16 @@ function ppFig(scope, hidden) {
     s += `<path d="${seq.map((d, i) => (i ? 'L' : 'M') + X(d.px).toFixed(1) + ' ' + Y(scoreOf(d, scope)).toFixed(1)).join('')}" fill="none" stroke="${g[0].tint}" stroke-opacity=".6" stroke-width="4" stroke-dasharray="2 10" stroke-linecap="round"/>`;
   });
 
-  const pts = placeLabels(rows.map((d) => {
+  // every model is a dot with its lab logo; only the pareto frontier is named (the rest name themselves on hover)
+  const all = rows.map((d) => {
     const sc = scoreOf(d, scope), text = `${d.model} (${d.effort})  ${fmtScope(scope, sc)}`;
     return { d, x: X(d.px), y: Y(sc), sc, text, w: textW(text, 28, 800) + 6 };
-  }), T, B, WP);
-  pts.forEach((p) => {
+  });
+  const pts = placeLabels(all.filter((p) => front.includes(p.d)), T, B, WP, all);
+  all.forEach((p) => {
     const d = p.d;
     s += `<g data-m="${esc(d.id)}" data-tip="${esc(`${d.model} · ${d.effort} · ${priceText(d)} · score ${fmtScope(scope, p.sc)}`)}">`;
-    if (Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
+    if (p.ly != null && Math.abs(p.ly - p.y) > 18) s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.iconX + 20}" y2="${p.ly}" stroke="${C.faint}" stroke-width="2"/>`;
     s += logoPoint(d, p.x, p.y, front.includes(d));
     if (isWarn(d)) s += warnSvg(p.x, p.y - 40, 30);
     s += `</g>`;
