@@ -1,14 +1,14 @@
 {
-  "latest": "v1.5.2",
+  "latest": "v1.5.3",
   "gci_base": "v1.5",
   "versions": [
     {
-      "id": "v1.5.2",
-      "date": "2026-11-25",
-      "entries": 73,
-      "complete": 33,
-      "summary": "5-part RE (blind, blind hard, assisted, assisted hard, released) on cleaned v5.6/v5.6.1 handoffs.",
-      "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
+      "id": "v1.5.3",
+      "date": "2026-11-27",
+      "entries": 74,
+      "complete": 34,
+      "summary": "Hard RE is a locked set of the 400 hardest human-rated cards; more human ratings; every card priced.",
+      "step_note": "Locked 400-card Hard set, 50 more human ratings, every card priced.",
       "csv": "data/gamefeelbench.csv",
       "score_keys": [
         "create",
@@ -22,6 +22,45 @@
       "re_weight": 1.5,
       "re_mode": "v152",
       "is_latest": true,
+      "gci_fit": {
+        "a": 1.0624,
+        "b": 0.12,
+        "r2": 1.0,
+        "anchors": 33,
+        "ref": "v1.5.2"
+      },
+      "transition": {
+        "from": "v1.5.2",
+        "to": "v1.5.3",
+        "anchors": 33,
+        "mean_from": 36.01,
+        "mean_to": 36.04,
+        "delta_mean": 0.03,
+        "delta_median": 0.01,
+        "ratio": 1.0008,
+        "r2": 1.0
+      }
+    },
+    {
+      "id": "v1.5.2",
+      "date": "2026-11-20",
+      "entries": 73,
+      "complete": 33,
+      "summary": "5-part RE (blind, blind hard, assisted, assisted hard, released) on cleaned v5.6/v5.6.1 handoffs.",
+      "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
+      "csv": "data/history/v1.5.2.csv",
+      "score_keys": [
+        "create",
+        "bugfix",
+        "gamefeel",
+        "ideas",
+        "visuals",
+        "audio",
+        "re"
+      ],
+      "re_weight": 1.5,
+      "re_mode": "v152",
+      "is_latest": false,
       "gci_fit": {
         "a": 1.065,
         "b": 0.057,

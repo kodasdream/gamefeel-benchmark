@@ -1,7 +1,7 @@
 {
-  "updated": "2026-11-25 23:53",
-  "entries": 73,
-  "standard": "v1.5.2",
+  "updated": "2026-11-27 20:20",
+  "entries": 74,
+  "standard": "v1.5.3",
   "score_keys": [
     "create",
     "bugfix",
@@ -15,11 +15,11 @@
   "re_mode": "v152",
   "gci": {
     "base": "v1.5",
-    "standard": "v1.5.2",
-    "a": 1.065,
-    "b": 0.057,
-    "r2": 0.9758,
-    "anchors": 31,
+    "standard": "v1.5.3",
+    "a": 1.0624,
+    "b": 0.12,
+    "r2": 1.0,
+    "anchors": 33,
     "chain": [
       {
         "id": "v1.2",
@@ -133,7 +133,7 @@
       },
       {
         "id": "v1.5.2",
-        "date": "2026-11-25",
+        "date": "2026-11-20",
         "entries": 73,
         "step_note": "5-part RE (incl. 1x human-only hard) & cleaned v5.6/v5.6.1 handoffs.",
         "gci_fit": {
@@ -154,6 +154,30 @@
           "ratio": 0.9805,
           "r2": 0.9758
         }
+      },
+      {
+        "id": "v1.5.3",
+        "date": "2026-11-27",
+        "entries": 74,
+        "step_note": "Locked 400-card Hard set, 50 more human ratings, every card priced.",
+        "gci_fit": {
+          "a": 1.0624,
+          "b": 0.12,
+          "r2": 1.0,
+          "anchors": 33,
+          "ref": "v1.5.2"
+        },
+        "transition": {
+          "from": "v1.5.2",
+          "to": "v1.5.3",
+          "anchors": 33,
+          "mean_from": 36.01,
+          "mean_to": 36.04,
+          "delta_mean": 0.03,
+          "delta_median": 0.01,
+          "ratio": 1.0008,
+          "r2": 1.0
+        }
       }
     ]
   },
@@ -167,10 +191,10 @@
     },
     "scale": {
       "re_blind": 1.0,
-      "re_blind_hard": 0.2012,
-      "re_assisted": 1.7396,
-      "re_assisted_hard": 0.4908,
-      "re_released": 2.4773
+      "re_blind_hard": 0.2321,
+      "re_assisted": 1.7579,
+      "re_assisted_hard": 0.5259,
+      "re_released": 2.4732
     },
     "pairs": {
       "re_blind": 26,
@@ -181,10 +205,10 @@
     },
     "legacy": 44,
     "v151_to_v152": {
-      "re_blind": 0.7415,
-      "re_blind_hard": 0.4723,
-      "re_assisted": 0.3298,
-      "re_assisted_hard": 0.1012
+      "re_blind": 0.7442,
+      "re_blind_hard": 0.5746,
+      "re_assisted": 0.3354,
+      "re_assisted_hard": 0.1352
     }
   }
 }

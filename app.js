@@ -7,6 +7,8 @@ let ICONS = {};
 let META = {};
 let LABS_MAP = {};
 let VERSIONS = null;
+// the current standard's name (v1.5.3 on 2026-11-27), for footnotes that say a model is waiting for a re-run on it
+const CUR_STD = () => (VERSIONS && VERSIONS.latest) || META.standard || 'v1.5.3';
 let LATEST_BUNDLE = null;
 const VERSION_CACHE = new Map();
 
@@ -92,7 +94,7 @@ const SUBCATEGORY_LIST = SCOPES.slice(1).map(([k, l]) => (k === 're' ? `${l} (co
 const TABS = [['overview', 'Overview'], ['explorer', 'Explorer'], ['profiles', 'Profiles'], ['speed', 'Speed'], ['ledger', 'Ledger'], ['method', 'Method']];
 const BASIS_WORD = { sub: 'subscription', api: 'API', free: 'free' };
 const PRICE_FLOOR = 0.02;          // free models are drawn at this price on the log axis
-const NEW_MODELS = ['gpt-6-astra-pro', 'Inkling-2-Mini'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
+const NEW_MODELS = ['Sonnet-next'];   // only the latest additions: a small NEW! over their columns, in the bar's colour
 const isNew = (d) => !META.is_historical && (NEW_MODELS.includes(d.model) || NEW_MODELS.includes(`${d.model} · ${d.effort}`));   // a bare name tags every effort level; 'Name · Effort' tags one
 const isWarn = (d) => /qoduck|qohawk/i.test(d.model);   // kept permanently: an orange ! in a triangle over their results
 const WARN_C = '#f08c00';
@@ -158,7 +160,7 @@ const HUMAN_EXPERT_BLIND_HARD = { v: 60, label: '~60% · Human expert (100+ hrs 
 // v1.5.2 RE combined (computed by the build): weighted mean of five parts; a missing part is estimated from the parts the model has
 const RE_PARTS = [['re_blind', 'blind', 5], ['re_blind_hard', 'blind hard', 2], ['re_assisted', 'assisted', 3], ['re_assisted_hard', 'assisted hard', 1], ['re_released', 'released', 2]];
 const RE_RULE = 'Combined = (5 × blind + 2 × blind hard + 3 × assisted + 1 × assisted hard + 2 × released) ÷ 13. A part a model has not run is estimated from the parts it has.';
-const RE_HARD = 'Hard: the same run, scored only on the cards the designers rated by hand, at 1x.';
+const RE_HARD = 'Hard: the same run, scored only on the locked set of 400 hand-rated cards AI misjudges most, at 1x.';
 // "3 of 5 parts (no assisted, assisted hard)" for a tooltip
 // a combined column split into what each part adds (RE board); a part the model has not run is estimated as the build does
 function reSegs(d) {
@@ -181,7 +183,7 @@ const reParts = (d) => {
     const have = ks.filter(([k]) => d[k] != null).map(([, l]) => l);
     return have.length ? `from ${have.join(' + ')}` : '';
   }
-  if (d.reLegacy) return 'estimated on v1.5.2 from older v1.5.1 RE run, until re-run';
+  if (d.reLegacy) return `estimated on ${CUR_STD()} from older v1.5.1 RE run, until re-run`;
   const miss = RE_PARTS.filter(([k]) => d[k] == null).map(([, l]) => l);
   return miss.length ? `${5 - miss.length} of 5 RE parts, ${miss.join(' and ')} estimated` : 'all 5 RE parts';
 };
@@ -226,9 +228,9 @@ const shortName = (d) => d.model + (d.reNote ? '*' : '') + (LEGACY_MARK && isPar
 const withLegacy = (on, fn) => { const k = LEGACY_MARK; LEGACY_MARK = on === true ? 're_combined' : (on || null); try { return fn(); } finally { LEGACY_MARK = k; } };
 const legacyFootnote = (rows, key = LEGACY_MARK || 're_combined') => {
   if (!rows.some((d) => isPartLegacy(d, key))) return null;
-  if (key === 're_blind_hard' || key === 're_assisted_hard' || key === 're_combined_hard') return '† Outdated: recalculated from the model\'s v1.5.1 run (human-rated cards only, 1x), until it is re-run on v1.5.2.';
-  if (key === 're_blind' || key === 're_assisted') return '† Outdated: the model\'s v1.5.1 run (same games, older handoff wording), until it is re-run on v1.5.2.';
-  return '† Outdated: estimated on v1.5.2 from the model\'s older v1.5.1 RE run (calibrated per part, never extrapolated from released games alone), until re-run.';
+  if (key === 're_blind_hard' || key === 're_assisted_hard' || key === 're_combined_hard') return `† Outdated: recalculated from the model's v1.5.1 run (human-rated cards only, 1x), until it is re-run on ${CUR_STD()}.`;
+  if (key === 're_blind' || key === 're_assisted') return `† Outdated: the model's v1.5.1 run (same games, older handoff wording), until it is re-run on ${CUR_STD()}.`;
+  return `† Outdated: estimated on ${CUR_STD()} from the model's older v1.5.1 RE run (calibrated per part, never extrapolated from released games alone), until re-run.`;
 };
 const modelEffort = (d) => [d.model, d.effort].filter(Boolean).join(' · ');
 const namesOf = (rows) => [...new Set(rows.map((d) => d.model))].join(', ');
@@ -249,10 +251,10 @@ const RE_TIP = {
   blind: 'No worked examples shown — the model rates the proposals cold',
   assisted: 'The model studies 39 rated worked examples before rating the rest',
   released: 'Blind, on proposals for released commercial games',
-  'blind-hard': 'Blind, scored only on the cards the designers rated by hand (includes ~2% average human gamer baseline)',
+  'blind-hard': 'Blind, scored only on the locked set of 400 hand-rated cards AI misjudges most (includes ~2% average human gamer baseline)',
   'blind-hard-human': 'Blind hard scaled to 60% to compare AI models against ~2% average 120 IQ human gamer (no experience) and ~60% human expert (100+ hrs)',
-  'assisted-hard': 'Assisted, scored only on the cards the designers rated by hand',
-  'combined-hard': '0.66 × blind hard + 0.34 × assisted hard (hand-rated cards only, 1x)',
+  'assisted-hard': 'Assisted, scored only on the locked set of 400 hand-rated cards AI misjudges most',
+  'combined-hard': '0.66 × blind hard + 0.34 × assisted hard (locked 400-card Hard set, 1x)',
 };
 const RE_LINES = {
   combined: [
@@ -272,19 +274,19 @@ const RE_LINES = {
     'Blind: no worked examples. Overall uses RE combined, not this view.',
   ],
   'blind-hard': [
-    'Gamefeel RE blind hard: the blind run, scored only on the cards the designers rated by hand, at 1x.',
+    'Gamefeel RE blind hard: the blind run, scored only on the locked set of 400 hand-rated cards AI misjudges most, at 1x.',
     'Dashed reference line: ~2% average 120 IQ human gamer (no gameplay experience in the unreleased game). See Blind hard · vs Human for the ~60% human expert baseline.',
   ],
   'blind-hard-human': [
-    'Gamefeel RE blind hard vs human baselines: hand-rated cards only (1x), scaled to 60% so the gap to a human expert is visible.',
+    'Gamefeel RE blind hard vs human baselines: the locked set of 400 hand-rated cards AI misjudges most (1x), scaled to 60% so the gap to a human expert is visible.',
     'Average 120 IQ human gamer (no gameplay experience in the unreleased game): ~2%. Human expert (100+ hours of gameplay experience): ~60%.',
   ],
   'assisted-hard': [
-    'Gamefeel RE assisted hard: the assisted run, scored only on the cards the designers rated by hand, at 1x.',
+    'Gamefeel RE assisted hard: the assisted run, scored only on the locked set of 400 hand-rated cards AI misjudges most, at 1x.',
     '39 rated worked examples studied first. Overall uses RE combined, not this view.',
   ],
   'combined-hard': [
-    'Gamefeel RE combined hard: 0.66 × blind hard + 0.34 × assisted hard (or whichever is available), scored only on hand-rated cards at 1x.',
+    'Gamefeel RE combined hard: 0.66 × blind hard + 0.34 × assisted hard (or whichever is available), scored only on the locked set of 400 hand-rated cards AI misjudges most at 1x.',
     'Overall uses full RE combined, not this view.',
   ],
 };
@@ -530,8 +532,8 @@ function reStackedFig() {
   const sections = [
     ['re_blind', 'BLIND', 'No worked examples shown — the model rates the game proposals cold.'],
     ['re_assisted', 'ASSISTED', 'The model studies 39 rated worked examples as help for how to calibrate its feedback, then rates the rest.'],
-    ['re_blind_hard', 'BLIND · HARD', 'The blind run, scored only on the cards the designers rated by hand, at 1x (dashed line: ~2% avg 120 IQ human gamer).'],
-    ['re_assisted_hard', 'ASSISTED · HARD', 'The assisted run, scored only on the cards the designers rated by hand, at 1x.'],
+    ['re_blind_hard', 'BLIND · HARD', 'The blind run, scored only on the locked set of 400 hand-rated cards AI misjudges most, at 1x (dashed line: ~2% avg 120 IQ human gamer).'],
+    ['re_assisted_hard', 'ASSISTED · HARD', 'The assisted run, scored only on the locked set of 400 hand-rated cards AI misjudges most, at 1x.'],
     ['re_released', 'RELEASED · BLIND', 'Blind, on proposals for released commercial games such as Balatro, Slay the Spire and World of Warcraft.'],
     ['re_combined', 'COMBINED', '5 × blind + 2 × blind hard + 3 × assisted + 1 × assisted hard + 2 × released, ÷ 13. Missing parts estimated from the rest.'],
   ];
@@ -539,10 +541,10 @@ function reStackedFig() {
   const hasHardLeg = reRows('re_blind_hard').some((d) => isPartLegacy(d, 're_blind_hard')) || reRows('re_assisted_hard').some((d) => isPartLegacy(d, 're_assisted_hard'));
   const lines = [
     'Gamefeel Reverse-Evaluation (RE): the model\'s ability to give feedback on game proposals, especially balancing feedback.',
-    'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Hard: scored only on the cards the designers rated by hand.',
+    'Assisted results get 39 rated examples as help for how they should calibrate their feedback. Hard: scored only on the locked set of 400 hand-rated cards AI misjudges most.',
     'Overall uses RE combined only, at 1.5x weight.',
     'Every model is shown once per chart, at its best reasoning effort.',
-    ...(hasCombLeg || hasHardLeg ? ['† Estimated from the model\'s older v1.5.1 run (calibrated per part for Combined; recalculated 1x human-only for Hard) until re-run on v1.5.2.'] : []),
+    ...(hasCombLeg || hasHardLeg ? [`† Estimated from the model's older v1.5.1 run (calibrated per part for Combined; recalculated 1x human-only for Hard) until re-run on ${CUR_STD()}.`] : []),
   ];
   const GAP = 90, W = 2 * WC;
   const cells = sections.map(([key, label, desc]) => {
@@ -571,8 +573,8 @@ function reStackedFig() {
    The five parts' weights as a ribbon, RE combined with each column split into what each part adds, then each part ranked on
    its own. On the site it is one chart wide with the parts three across; the export is twice as wide, five across, exportScale 2. */
 const PART_DESC = {
-  re_blind: 'Rates the game proposals cold', re_blind_hard: 'Blind run, hand-rated cards only',
-  re_assisted: 'Studies 39 rated examples first', re_assisted_hard: 'Assisted run, hand-rated cards only',
+  re_blind: 'Rates the game proposals cold', re_blind_hard: 'Blind run, locked 400-card Hard set',
+  re_assisted: 'Studies 39 rated examples first', re_assisted_hard: 'Assisted run, locked 400-card Hard set',
   re_released: 'Blind, on released commercial games',
 };
 function reRibbonSvg(w, y) {   // the five parts at 5 / 2 / 3 / 1 / 2 of 13, in their colours
@@ -619,7 +621,7 @@ function reBoardFig(hidden = NONE, wide = false) {
   const W = wide ? 2 * WC : WC, cols = wide ? 5 : 3, RIB = 112;
   const lines = [
     'Gamefeel RE board: RE combined split into what each part adds, then every part ranked on its own. Overall uses RE combined at 1.5x weight.',
-    'Assisted runs study 39 rated examples first. Hard: the same run, scored only on the cards the designers rated by hand.',
+    'Assisted runs study 39 rated examples first. Hard: the same run, scored only on the locked set of 400 hand-rated cards AI misjudges most.',
   ];
   let top = topFor(lines), body = reRibbonSvg(W, top + 6);   // below the site's header crop, so the part names show
   top += RIB + 10;
@@ -658,7 +660,7 @@ function reBoardFig(hidden = NONE, wide = false) {
   const subset = DATA.filter((d) => !hidden.has(d.id) && d.reNote && RE_PARTS.some(([k]) => valOfPart(d, k) != null));
   const notes = [
     subset.length ? reFootnote(subset) : null,
-    hardPanelLeg ? '† In the Blind hard and Assisted hard panels, marks a recalculated v1.5.1 run (human-rated cards only, 1x) until the model is re-run on v1.5.2.' : null,
+    hardPanelLeg ? `† In the Blind hard and Assisted hard panels, marks a recalculated v1.5.1 run (human-rated cards only, 1x) until the model is re-run on ${CUR_STD()}.` : null,
   ].filter(Boolean).flatMap((t) => wrapText(t, 20, 600, W - 128));
   notes.forEach((t, i) => { body += `<text x="64" y="${top + 30 * i}" font-size="20" font-weight="600" fill="${C.soft}">${esc(t)}</text>`; });
   const H = top + 30 * notes.length + 50;
@@ -1290,7 +1292,7 @@ function reHelpHTML(sort, hidden) {
     'The same RE test, run twice: blind, and again after the model studies 39 rated examples. The chip is what the examples add, in points.',
     `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-hsort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
     pairKey('Blind (no examples)', 'Assisted (after 39 rated examples)') + chart,
-    `Only the ${rows.length} entries with both runs; every reasoning effort is its own column.${rows.some(out) ? ' † Outdated: a score from the model\'s v1.5.1 run (same games, older handoff wording), until it is re-run on v1.5.2.' : ''}`);
+    `Only the ${rows.length} entries with both runs; every reasoning effort is its own column.${rows.some(out) ? ` † Outdated: a score from the model's v1.5.1 run (same games, older handoff wording), until it is re-run on ${CUR_STD()}.` : ''}`);
 }
 
 /* ---------- released vs unreleased: RE blind on the unreleased test games against RE blind on released games ---------- */
@@ -1397,7 +1399,7 @@ function generalHTML(metric, sort, hidden) {
     `The dashed outline is the Gamefeel ${what} score a model would get from its general capability alone: a straight-line fit on the Artificial Analysis Intelligence Index (r² = ${fit.r2.toFixed(2)}). The chip is how far its real score is from that: green = better at game work than its general capability predicts, red = worse.`,
     tog + `<div class="sortbar"><span class="seg-cap">Sort</span><div class="seg">${opts.map(([k, l]) => `<button type="button" data-asort="${k}" class="${sort.key === k ? 'on' : ''}">${l}${sort.key === k ? (sort.dir < 0 ? ' ▾' : ' ▴') : ''}</button>`).join('')}</div></div>` +
     pairKey(`Gamefeel ${what} score`, 'Expected from the AA index') + chart,
-    `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.${base.some((d) => d.reLegacy) ? ' † Outdated: RE combined estimated from the model\'s v1.5.1 run until it is re-run on v1.5.2.' : ''}`);
+    `AA index: Artificial Analysis Intelligence Index from artificialanalysis.ai, read 2026-11-13, matched to the same model and reasoning effort; ${base.length} entries have both. Models not on their leaderboard are left out.${base.some((d) => d.reLegacy) ? ` † Outdated: RE combined estimated from the model's v1.5.1 run until it is re-run on ${CUR_STD()}.` : ''}`);
 }
 
 /* ---------- progress over time: GCI (Gamefeel Capabilities Index) by each model's public release date ---------- */
@@ -1487,7 +1489,7 @@ function progressHTML(hidden) {
   return card('Progress over time · GCI',
     'GCI, the Gamefeel Capabilities Index: one number per model that stays comparable when the benchmark moves to a new version. Each dot is a model at its public release date; the lines step up each time a new best arrives.' + (state.openOnly ? '' : ' <span style="color:var(--azure);font-weight:800">Solid blue</span>: best of all models. <span style="color:var(--good-ink);font-weight:800">Dashed green</span>: best open-weight model.'),
     `<svg class="hsvg" viewBox="0 0 ${W} ${H}">${s}</svg><div class="tscroll">${table}</div>${scaleTable}`,
-    `GCI on ${esc(gci.base || 'v1.5')} = the overall score. Across every version change (v1.2 through ${esc((VERSIONS && VERSIONS.latest) || META.standard || 'v1.5.2')}), the build fits a straight line over all overlapping models tested in both versions, chaining backward and forward so scores stay on one comparable scale; all versions are kept in data/gci-history.csv. Dates are each model's public release date. Only released models with all category scores have a GCI; unreleased and stealth models are left out until they ship.`);
+    `GCI on ${esc(gci.base || 'v1.5')} = the overall score. Across every version change (v1.2 through ${esc((VERSIONS && VERSIONS.latest) || META.standard || 'v1.5.3')}), the build fits a straight line over all overlapping models tested in both versions, chaining backward and forward so scores stay on one comparable scale; all versions are kept in data/gci-history.csv. Dates are each model's public release date. Only released models with all category scores have a GCI; unreleased and stealth models are left out until they ship.`);
 }
 
 /* ---------- overview: a tile per view, each with a small live preview; a click opens the view ---------- */
@@ -1791,7 +1793,7 @@ function updateMetaAndBanner() {
   const scaleTxt = fit.ref === 'base'
     ? 'GCI base (1.00 × avg)'
     : `GCI scale: ${Number(fit.a).toFixed(3)} × avg ${fit.b >= 0 ? '+' : '−'} ${Math.abs(fit.b).toFixed(2)} (${fit.anchors} anchors, R² ${Number(fit.r2).toFixed(3)})`;
-  const latest = (VERSIONS && VERSIONS.latest) || 'v1.5.2';
+  const latest = (VERSIONS && VERSIONS.latest) || 'v1.5.3';
   ban.hidden = false;
   ban.innerHTML = `<span><b>Historical snapshot · ${esc(v.id)}</b> <span class="vb-meta">(${esc(v.date)} · ${v.entries} entries) — ${esc(v.summary)} ${esc(scaleTxt)}.</span></span>` +
     `<button type="button" data-switch-ver="${esc(latest)}">Back to ${esc(latest)} (latest)</button>`;
