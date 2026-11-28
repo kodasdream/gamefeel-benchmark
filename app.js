@@ -113,7 +113,9 @@ const NONE = new Set();
 /* Dark theme (header switch): page colours live in style.css; here only what the JS writes inline. */
 const isDark = () => document.documentElement.dataset.theme === 'dark';
 const lum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 1; const n = parseInt(m[1], 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
-const themedTint = (t) => (isDark() && lum(t) < 0.05 ? '#d2d2d2' : t);   // a near-black lab colour would vanish on the dark gray
+// dark theme: lab colours are mixed 18% toward white so bars and logos stay bright on the gray; a near-black one becomes light gray
+const lighten = (hex, f) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return hex; const n = parseInt(m[1], 16); return '#' + [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * f).toString(16).padStart(2, '0')).join(''); };
+const themedTint = (t) => (!isDark() ? t : lum(t) < 0.05 ? '#d2d2d2' : lighten(t, 0.18));
 const heatBg = (t) => (isDark() ? `hsl(220 50% ${(24 + t * 34).toFixed(0)}%)` : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
