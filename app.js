@@ -1750,12 +1750,21 @@ function renderSidebar() {
     }).join('');
   }
   const list = sidebarFilteredList();
-  $('#modelList').innerHTML = list.map((d) => {
-    const on = !state.hidden.has(d.id);
-    return `<label class="mrow ${on ? '' : 'off'}" data-row="${esc(d.id)}">` +
-      `<input type="checkbox" data-hide="${esc(d.id)}" ${on ? 'checked' : ''} />${iconHTML(d)}` +
-      `<span class="mtxt"><b>${esc(shortName(d))}</b><small>${esc(d.lab)} · ${esc(d.effort)}</small></span>` +
-      `<span class="mavg${d.complete ? '' : ' is-part'}">${d.complete ? d.avg.toFixed(2) : 'partial'}</span></label>`;
+  // one card per model, best overall first; its reasoning-effort levels are toggles inside it
+  const groups = new Map();
+  list.forEach((d) => { if (!groups.has(d.model)) groups.set(d.model, []); groups.get(d.model).push(d); });
+  const best = (g) => Math.max(...g.map((d) => (d.complete ? d.avg : -1)));
+  const ordered = [...groups.values()].map((g) => g.sort((a, b) => (EFFORT_ORDER[b.effort] ?? -1) - (EFFORT_ORDER[a.effort] ?? -1))).sort((a, b) => best(b) - best(a));
+  $('#modelList').innerHTML = ordered.map((g) => {
+    const nOn = g.filter((d) => !state.hidden.has(d.id)).length;
+    const st = nOn === g.length ? 'all' : nOn ? 'some' : 'none';
+    const top = g.reduce((a, b) => ((b.complete ? b.avg : -1) > (a.complete ? a.avg : -1) ? b : a));
+    return `<div class="mgrp ${st}" data-row="${esc(top.id)}" style="--c:${top.tint}">` +
+      `<button type="button" class="mg-main" data-hide-group="${esc(g[0].model)}" aria-pressed="${st !== 'none'}" title="${st === 'all' ? 'Hide' : 'Show'} every effort level">` +
+      `<span class="mg-box" aria-hidden="true"></span>${iconHTML(top)}<span class="mtxt"><b>${esc(g[0].model)}</b><small>${esc(top.lab)}</small></span>` +
+      `<span class="mavg${top.complete ? '' : ' is-part'}">${top.complete ? top.avg.toFixed(2) : 'partial'}</span></button>` +
+      `<div class="mg-eff">${g.map((d) => { const on = !state.hidden.has(d.id);
+        return `<button type="button" class="ef${on ? ' on' : ''}" data-hide="${esc(d.id)}" data-row="${esc(d.id)}" aria-pressed="${on}" title="${esc(modelEffort(d))}${d.complete ? ` · ${d.avg.toFixed(2)}` : ' · partial run'}">${esc(d.effort || 'Default')}${d.complete ? `<i>${d.avg.toFixed(1)}</i>` : ''}</button>`; }).join('')}</div></div>`;
   }).join('') || '<div class="side-foot">No model matches that filter.</div>';
   $('#shown').textContent = `${DATA.length - viewHidden().size} / ${DATA.length} shown${state.openOnly ? ' · open' : ''}`;
 }
@@ -1848,7 +1857,7 @@ function shortDate(s) {
 }
 function updateMetaAndBanner() {
   const csvHref = (META.version_info && META.version_info.csv) || 'data/gamefeelbench.csv';
-  $('#meta').innerHTML = `<span class="meta-txt">${DATA.length} models · ${esc(shortDate(META.updated))}</span>` +
+  $('#meta').innerHTML =
     `<a class="csv-btn" href="${esc(csvHref)}" download title="Download ${esc(META.standard || 'benchmark')} data as CSV"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v7.2M4 6.6 7 9.6l3-3M2.5 11.8h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>CSV</a>`;
   const vVal = $('#verVal');
   if (vVal && META.standard) {
@@ -1979,6 +1988,14 @@ $('#stage').addEventListener('click', (e) => {
   state.sort = state.sort.key === k ? { key: k, dir: -state.sort.dir } : { key: k, dir: ['model', 'effort', 'basis'].includes(k) ? 1 : -1 };
   render();
 });
+$('#modelList').addEventListener('click', (e) => {
+  const one = e.target.closest('[data-hide]');
+  if (one) { toggle(state.hidden, one.dataset.hide); render(); return; }
+  const grp = e.target.closest('[data-hide-group]'); if (!grp) return;
+  const ids = DATA.filter((d) => d.model === grp.dataset.hideGroup).map((d) => d.id);
+  if (ids.every((id) => !state.hidden.has(id))) ids.forEach((id) => state.hidden.add(id)); else ids.forEach((id) => state.hidden.delete(id));
+  render();
+});
 $('#modelList').addEventListener('change', (e) => {
   const id = e.target.dataset.hide; if (!id) return;
   toggle(state.hidden, id); render();
@@ -2032,9 +2049,21 @@ $('#stage').addEventListener('mousemove', (e) => {
 });
 $('#stage').addEventListener('mouseleave', () => { tip.style.opacity = 0; });
 /* ☰ menu: every section, the five tabs first, then the extra views */
+/* ☰ menu: the six main views on the left, the extra views on the right (one column on phones) */
+const MENU_SUB = { overview: 'Top models, leaderboard, every view', explorer: 'Scores, price and size by category', profiles: 'Seven scores as one shape per model', speed: 'Tokens per second, minutes per task', ledger: 'Every column for every entry', method: 'How RE and Visuals are scored' };
+const sv = (d) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const EXTRA_ICON = {
+  glance: sv('<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M3 8h14M3 12.5h14M8 3v14M12.5 3v14"/>'),
+  rehelp: sv('<path d="M4 16V10M10 16V6M16 16V3"/><path d="M8 8l2-2 2 2"/>'),
+  released: sv('<rect x="3" y="4" width="14" height="11" rx="2.5"/><path d="M3 8h14M7 15v2M13 15v2"/>'),
+  effort: sv('<path d="M3.5 14a6.5 6.5 0 1 1 13 0"/><path d="M10 14l3.5-4"/>'),
+  general: sv('<path d="M3 17h14M3 17V3"/><circle cx="7" cy="12" r="1.3"/><circle cx="11" cy="9" r="1.3"/><circle cx="15" cy="5.5" r="1.3"/>'),
+  progress: sv('<path d="M3 15l4.5-4.5 3 3L17 6"/><path d="M13 6h4v4"/>'),
+};
 function renderMenu() {
-  const item = ([k, l, sub], key) => `<button type="button" data-goto="${k}" class="${state.tab === k ? 'on' : ''}"><b>${esc(l)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}<kbd>${key}</kbd></button>`;
-  $('#menu').innerHTML = `<div class="mhead">Views</div>${TABS.map((t, i) => item(t, i + 1)).join('')}<div class="mhead">More views</div>${EXTRA.map((t, i) => item(t, i + 6)).join('')}`;
+  const item = (k, l, sub, ico, key) => `<button type="button" data-goto="${k}" class="${state.tab === k ? 'on' : ''}"><span class="mi">${ico || ''}</span><span class="mt"><b>${esc(l)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>${key <= 9 ? `<kbd>${key}</kbd>` : ''}</button>`;
+  $('#menu').innerHTML = `<div class="mcol"><div class="mhead">Views</div>${TABS.map(([k, l], i) => item(k, l, MENU_SUB[k], TAB_ICON[k], i + 1)).join('')}</div>` +
+    `<div class="mcol"><div class="mhead">More views</div>${EXTRA.map(([k, l, sub], i) => item(k, l, sub, EXTRA_ICON[k], i + 7)).join('')}</div>`;
 }
 const setMenu = (open) => { $('#menu').hidden = !open; $('#menuBtn').setAttribute('aria-expanded', String(open)); if (open) setVerMenu(false); };
 const setVerMenu = (open) => { const m = $('#verMenu'), b = $('#verBtn'); if (!m || !b) return; m.hidden = !open; b.setAttribute('aria-expanded', String(open)); if (open) { $('#menu').hidden = true; $('#menuBtn').setAttribute('aria-expanded', 'false'); } };
