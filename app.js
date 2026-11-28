@@ -1493,9 +1493,11 @@ function progressHTML(hidden) {
 }
 
 /* ---------- overview: a tile per view, each with a small live preview; a click opens the view ---------- */
+const TILE_EXTRA = 14;   // rows past n wait hidden; fillTiles() shows as many as fit the card
+const exAttr = (i, n) => (i >= n ? ' class="ex" data-ex="1"' : '');
 const miniBars = (rows, val, fmt = fmtScore, n = 4) => {
-  const top = rows.slice(0, n), max = top.length ? Math.max(...top.map(val)) || 1 : 1;
-  return `<ol class="mini">${top.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b>${isWarn(d) ? warnHTML : ''}</span><i style="width:${Math.max(3, (val(d) / max) * 100).toFixed(0)}%;background:${d.tint}"></i><em>${fmt(val(d))}</em></li>`).join('')}</ol>`;
+  const top = rows.slice(0, n + TILE_EXTRA), max = top.length ? Math.max(...top.map(val)) || 1 : 1;
+  return `<ol class="mini">${top.map((d, i) => `<li${exAttr(i, n)}><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b>${isWarn(d) ? warnHTML : ''}</span><i style="width:${Math.max(3, (val(d) / max) * 100).toFixed(0)}%;background:${d.tint}"></i><em>${fmt(val(d))}</em></li>`).join('')}</ol>`;
 };
 function miniScatter(rows, xv, yv, logX = true) {
   if (rows.length < 2) return '';
@@ -1527,11 +1529,11 @@ function tilesHTML(hidden) {
   const hm = ranked('avg').slice(0, 5), range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, v.length ? [Math.min(...v), Math.max(...v)] : [0, 1]]; }));
   add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
   const tb = (d) => valOfPart(d, 're_blind'), ta = (d) => valOfPart(d, 're_assisted');   // as in the view: outdated v1.5.1 runs count too
-  const ra = vis.filter((d) => tb(d) != null && ta(d) != null).sort((a, b) => (ta(b) - tb(b)) - (ta(a) - tb(a))).slice(0, 3);
-  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${tb(d)}%;width:${Math.max(1, ta(d) - tb(d))}%;background:${d.tint}"></i></span><em>+${(ta(d) - tb(d)).toFixed(2)}</em></li>`).join('')}</ol>`);
+  const ra = vis.filter((d) => tb(d) != null && ta(d) != null).sort((a, b) => (ta(b) - tb(b)) - (ta(a) - tb(a))).slice(0, 3 + TILE_EXTRA);
+  add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d, i) => `<li${exAttr(i, 3)}><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${tb(d)}%;width:${Math.max(1, ta(d) - tb(d))}%;background:${d.tint}"></i></span><em>+${(ta(d) - tb(d)).toFixed(2)}</em></li>`).join('')}</ol>`);
   const ubv = (d) => d.re_blind ?? d.reBlindOld;   // as in the released view: the older blind run stands in until a model is re-run
-  const rv = vis.filter((d) => ubv(d) != null && d.re_released > 0).sort((a, b) => (ubv(a) - a.re_released) / a.re_released - (ubv(b) - b.re_released) / b.re_released).slice(0, 3);
-  add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d) => { const g = ((ubv(d) - d.re_released) / d.re_released) * 100; return `<li><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
+  const rv = vis.filter((d) => ubv(d) != null && d.re_released > 0).sort((a, b) => (ubv(a) - a.re_released) / a.re_released - (ubv(b) - b.re_released) / b.re_released).slice(0, 3 + TILE_EXTRA);
+  add('released', 'Released vs unreleased games', 'How much weaker on unseen games', `<ol class="mini">${rv.map((d, i) => { const g = ((ubv(d) - d.re_released) / d.re_released) * 100; return `<li${exAttr(i, 3)}><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><em class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '+' : '−'}${Math.round(Math.abs(g))}%</em></li>`; }).join('')}</ol>`);
   if (activeReMode() === 'v152') {
     const bhTop = bestPerModel(vis.filter((d) => valOfPart(d, 're_blind_hard') != null).sort((a, b) => valOfPart(b, 're_blind_hard') - valOfPart(a, 're_blind_hard')))[0];
     const bhTopV = bhTop ? valOfPart(bhTop, 're_blind_hard') : null;
@@ -1545,18 +1547,18 @@ function tilesHTML(hidden) {
   }
   const fam = {}; vis.filter((d) => d.avg != null && d.price > 0 && d.effort in EFFORT_ORDER).forEach((d) => { (fam[d.model] = fam[d.model] || []).push(d); });
   const F = Object.values(fam).filter((g) => g.length > 1).map((g) => g.sort((a, b) => EFFORT_ORDER[a.effort] - EFFORT_ORDER[b.effort]));
-  add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3).map((g) => `<li><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(2)}`).join(' → ')}</em></li>`).join('')}</ol>`);
+  add('effort', 'Is more effort worth it?', 'Each model across its effort levels', `<ol class="mini">${F.slice(0, 3 + TILE_EXTRA).map((g, i) => `<li${exAttr(i, 3)}><span class="mn">${iconHTML(g[0])}<b>${esc(g[0].model)}</b></span><em class="wide">${g.map((d) => `${d.effort[0]}${d.effort === 'XHigh' ? 'H' : ''} ${d.avg.toFixed(2)}`).join(' → ')}</em></li>`).join('')}</ol>`);
   const both = vis.filter((d) => d.aaIndex != null && d.avg != null);
   let gen = '';
   if (both.length >= 3) {
     const fit = linFit(both.map((d) => [d.aaIndex, d.avg]));
     const g = both.map((d) => ({ d, gap: d.avg - (fit.a + fit.b * d.aaIndex) })).sort((a, b) => b.gap - a.gap);
-    gen = `<ol class="mini">${[g[0], g[1], g[g.length - 1]].map(({ d, gap }) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="${gap >= 0 ? 'up' : 'dn'}">${gap >= 0 ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(2)}</em></li>`).join('')}</ol>`;
+    gen = `<ol class="mini">${[...g.slice(0, 2 + TILE_EXTRA).filter((x) => x !== g[g.length - 1]), g[g.length - 1]].map(({ d, gap }, i, arr) => `<li${i >= 2 && i < arr.length - 1 ? ' class="ex" data-ex="1"' : ''}><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="${gap >= 0 ? 'up' : 'dn'}">${gap >= 0 ? '▲ +' : '▼ −'}${Math.abs(gap).toFixed(2)}</em></li>`).join('')}</ol>`;
   }
   add('general', 'Gamefeel vs general capability', 'Who beats their Artificial Analysis index', gen);
   const pg = vis.filter((d) => d.gci != null && d.firstSeen).sort((a, b) => a.firstSeen.localeCompare(b.firstSeen));
   let bestSoFar = -Infinity; const recs = pg.filter((d) => (d.gci > bestSoFar ? ((bestSoFar = d.gci), true) : false));
-  add('progress', 'Progress over time', 'GCI: the best Gamefeel score so far', recs.length ? `<ol class="mini">${recs.slice(-3).reverse().map((d) => `<li><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="wide">${d.firstSeen.slice(5)} · GCI ${d.gci.toFixed(2)}</em></li>`).join('')}</ol>` : '');
+  add('progress', 'Progress over time', 'GCI: the best Gamefeel score so far', recs.length ? `<ol class="mini">${recs.slice(-(3 + TILE_EXTRA)).reverse().map((d, i) => `<li${exAttr(i, 3)}><span class="mn">${iconHTML(d)}<b>${esc(d.model)}</b></span><em class="wide">${d.firstSeen.slice(5)} · GCI ${d.gci.toFixed(2)}</em></li>`).join('')}</ol>` : '');
   return `<div class="tiles">${tiles.map((t) => `<button type="button" class="tile${t.big ? ' big' : ''}" data-open="${t.go}"><span class="th"><b>${esc(t.title)}</b><span class="arrow">↗</span></span><small>${esc(t.sub)}</small><div class="tb">${t.body}</div></button>`).join('')}</div>`;
 }
 
@@ -1787,7 +1789,22 @@ function render() {
   applySpot();
   renderSidebar();
   writeHash();
+  fillTiles();
 }
+/* Overview cards share a row height; reveal extra list rows one by one until the next one would make the card taller. */
+function fillTiles() {
+  document.querySelectorAll('#stage .tile').forEach((t) => {
+    const ex = [...t.querySelectorAll('li[data-ex]')];
+    ex.forEach((li) => li.classList.add('ex'));
+    for (const li of ex) {
+      const h = t.offsetHeight;
+      li.classList.remove('ex');
+      if (t.offsetHeight > h + 0.5 || t.scrollHeight > t.clientHeight + 1) { li.classList.add('ex'); break; }
+    }
+  });
+}
+let fillT = 0;
+addEventListener('resize', () => { clearTimeout(fillT); fillT = setTimeout(fillTiles, 120); });
 function readHash() {
   const [tab, a, b, c] = decodeURIComponent(location.hash.slice(1)).split('/');
   if (TABS_KEYS.includes(tab) || EXTRA_KEYS.includes(tab)) state.tab = tab;
