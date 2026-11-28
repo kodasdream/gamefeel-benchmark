@@ -1560,6 +1560,56 @@ function tilesHTML(hidden) {
   return `<div class="tiles">${tiles.map((t) => `<button type="button" class="tile${t.big ? ' big' : ''}" data-open="${t.go}"><span class="th"><b>${esc(t.title)}</b><span class="arrow">↗</span></span><small>${esc(t.sub)}</small><div class="tb">${t.body}</div></button>`).join('')}</div>`;
 }
 
+/* ---------- overview: headline, top-3 cards, the top-12 leaderboard, category leaders and best value; the view tiles below ---------- */
+const OV_EFFORT = { Low: 1, Medium: 2, High: 3, XHigh: 4, Max: 5 };
+const OV_ABBR = { create: 'CR', bugfix: 'DB', gamefeel: 'GF', ideas: 'ID', visuals: 'VI', audio: 'AU', re: 'RE' };
+const OV_CAT = { create: 'Create', bugfix: 'Debugging', gamefeel: 'Gamefeel', ideas: 'Ideas', visuals: 'Visuals', audio: 'Audio', re: 'Reverse-eval' };
+const ovMeter = (d) => `<span class="ov-mtr" title="${esc(d.effort || 'No')} reasoning effort">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= (OV_EFFORT[d.effort] || 0) ? 'f' : ''}"></i>`).join('')}</span>`;
+const ovCost = (d) => (d.price == null ? '<span class="ov-cost">no price</span>' : d.free ? '<span class="ov-cost">Free</span>' : `<span class="ov-cost">$${d.price.toFixed(2)}<small> per task</small></span>`);
+const ovFloor = (lb) => (lb.length ? Math.max(0, Math.floor((Math.min(...lb.map((d) => d.avg)) - 5) / 5) * 5) : 0);   // the leaderboard axis starts one step below the 12th score
+function overviewHTML(hidden) {
+  return withLegacy(true, () => {
+    const vis = DATA.filter((d) => !hidden.has(d.id));
+    const ks = activeScoreKeys();
+    const top = vis.filter((d) => d.complete).sort((a, b) => b.avg - a.avg);
+    // the small bars on each top-3 card run from the worst to the best score in that category
+    const range = Object.fromEntries(ks.map((k) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, v.length ? [Math.min(...v), Math.max(...v)] : [0, 1]]; }));
+    const nm = (d) => `${esc(shortName(d))}${isWarn(d) ? warnHTML : ''}`;
+    const pod = top.slice(0, 3).map((d, i) => `<button type="button" class="ov-pod" data-open="explorer/overall/score" style="--c:${d.tint}"><span class="ov-rank">#${i + 1}</span>` +
+      `<span class="ov-lg">${iconHTML(d)}</span><span class="ov-nm">${nm(d)}</span>` +
+      `<span class="ov-meta"><span class="ov-eff">${ovMeter(d)}${esc(d.effort || '—')}</span>${ovCost(d)}</span>` +
+      `<span class="ov-score">${fmt2(d.avg)}<small>/ 100</small></span>` +
+      `<span class="ov-mini">${ks.map((k) => { const [a, b] = range[k], v = d[k]; const h = v == null ? 0 : 6 + 94 * (v - a) / (b - a || 1);
+        return `<span><i><b style="height:${h.toFixed(1)}%"></b></i><em>${v == null ? '—' : Math.round(v)}</em>${OV_ABBR[k] || k}</span>`; }).join('')}</span></button>`).join('');
+    const lb = top.slice(0, 12);
+    let chart = '', list = '';
+    const mn = ovFloor(lb);
+    if (lb.length) {
+      const mx = Math.ceil(Math.max(...lb.map((d) => d.avg)) / 5) * 5, rg = mx - mn || 5;
+      const ticks = []; for (let t = mn; t <= mx; t += 5) ticks.push(t);
+      chart = `<div class="ov-vc"><div class="ov-ax">${ticks.map((t) => `<span style="bottom:${((t - mn) / rg) * 100}%">${t}</span>`).join('')}</div><div class="ov-plot"><div class="ov-grid">${ticks.map((t) => `<i style="bottom:${((t - mn) / rg) * 100}%"></i>`).join('')}</div>` +
+        [...lb].reverse().map((d) => `<div class="ov-col" style="--c:${d.tint}" data-tip="${esc(modelEffort(d))} · ${fmt2(d.avg)} · ${esc(priceText(d))}"><div class="ov-top"><b>${fmt2(d.avg)}</b><i style="height:${(((d.avg - mn) / rg) * 100).toFixed(1)}%"></i></div>` +
+          `<div class="ov-foot">${iconHTML(d)}<em>${esc(d.effort === 'Medium' ? 'Med' : (d.effort || ''))}</em><u>${esc(priceLabel(d))}</u></div><div class="ov-rot"><span>${esc(shortName(d))}</span></div></div>`).join('') + '</div></div>';
+      list = `<ol class="ov-list">${lb.map((d, i) => `<li><span class="rk">${i + 1}</span>${iconHTML(d)}<span class="n"><b>${nm(d)}</b><em>${esc(d.effort || '')}</em></span><span class="v">${fmt2(d.avg)}</span></li>`).join('')}</ol>`;
+    }
+    const foot = [mn ? `Scale starts at ${mn} to separate the top ${lb.length}.` : '', legacyFootnote(lb) || ''].filter(Boolean).join(' ');
+    const cats = ks.map((k) => { const w = bestPerModel(vis.filter((d) => d[k] != null).sort((a, b) => b[k] - a[k]))[0]; if (!w) return '';
+      return `<button type="button" class="ov-cat" data-open="explorer/${k}/score"><span class="k">${OV_CAT[k] || k}</span><span class="w">${iconHTML(w)}<span class="t"><b>${nm(w)}</b> <em>${esc(w.effort || '')}</em></span></span><span class="s">${k === 're' ? fmt2(w[k]) : Math.round(w[k])}</span></button>`; }).join('');
+    const val = vis.filter((d) => d.avg != null && d.avg >= 40 && d.price > 0).sort((a, b) => b.avg / b.price - a.avg / a.price).slice(0, 4)
+      .map((d) => `<div class="ov-cat"><span class="w">${iconHTML(d)}<span class="t"><b>${nm(d)}</b> <em>${esc(d.effort || '')}</em></span></span><span class="s">${d.avg.toFixed(1)}</span><span class="p">${esc(priceLabel(d))}</span></div>`).join('');
+    const eyebrow = `${esc(META.standard || '')}${META.updated ? ` · updated ${esc(shortDate(META.updated))}` : ''}`;
+    return '<div class="ov">' +
+      `<section class="ov-hero"><div class="ov-hl"><span class="ov-eyebrow">${eyebrow}</span><h1>AI models, ranked on real game development</h1>` +
+      `<p>Each model adds content and balance changes to 12 unpublished games, then is scored on coding, gamefeel, creativity and how well it judges other people's designs, across more than 70,000 tasks.</p></div>` +
+      `<div class="ov-podium">${pod || '<p class="ov-empty">No model with every score is shown.</p>'}</div></section>` +
+      `<div class="ov-cols"><section class="ov-card"><header><h2>Overall leaderboard</h2><a data-open="explorer/overall/score">See every score →</a></header>` +
+      `<div class="ov-desk">${chart}</div><div class="ov-mob">${list}</div>${foot ? `<p class="ov-fn">${esc(foot)}</p>` : ''}</section>` +
+      `<div class="ov-stack"><section class="ov-card"><header><h2>Category leaders</h2></header>${cats}</section>` +
+      (val ? `<section class="ov-card"><header><h2>Best value</h2><span class="ov-sub">score ≥ 40, most points per $</span></header>${val}</section>` : '') + '</div></div>' +
+      `<h2 class="ov-more">More views</h2>${tilesHTML(hidden)}</div>`;
+  });
+}
+
 /* ---------- method / how it works page ---------- */
 function methodHTML() {
   return `<div class="method-wrap">
@@ -1578,16 +1628,22 @@ const TOP3 = () => DATA.filter((d) => d.complete).sort((a, b) => b.avg - a.avg).
 const state = {
   tab: 'overview', scope: 'overall', mode: 'score', metric: 'tps', reView: 'combined', reLook: 'classic', methodSec: '',
   sort: { key: 'avg', dir: -1 }, hidden: new Set(), prof: new Set(), spot: null, labFilter: 'all',
-  openOnly: false,
+  openOnly: false, q: '',
   gsort: { key: 'avg', dir: -1 }, hsort: { key: 'gain', dir: -1 }, rsort: { key: 'gap', dir: -1 }, rmode: 'pts', asort: { key: 'gap', dir: -1 }, emetric: 'avg', gmetric: 'avg',
 };
 
 /* The open-weights switch hides every closed (or unflagged) model in every view, on top of the ticks in the model list. */
-const viewHidden = () => (state.openOnly ? new Set([...state.hidden, ...DATA.filter((d) => !d.openWeights).map((d) => d.id)]) : state.hidden);
+/* The header search does the same for every model whose name, effort or lab does not match. */
+const viewHidden = () => {
+  const out = state.openOnly ? new Set([...state.hidden, ...DATA.filter((d) => !d.openWeights).map((d) => d.id)]) : new Set(state.hidden);
+  const q = state.q.trim().toLowerCase();
+  if (q) DATA.forEach((d) => { if (!`${d.model} ${d.effort} ${d.lab}`.toLowerCase().includes(q)) out.add(d.id); });
+  return out;
+};
 function buildCurrent() {
   const phone = isPhone();
   const hidden = viewHidden();
-  if (state.tab === 'overview') return { html: tilesHTML(hidden) };
+  if (state.tab === 'overview') return { html: overviewHTML(hidden) };
   if (phone && state.tab === 'explorer' && state.mode === 'score') return { html: rankListHTML(state.scope, hidden) };
   switch (state.tab) {
     case 'glance': return { html: glanceHTML(state.gsort, hidden) };
@@ -1632,7 +1688,7 @@ function subControlsHTML() {   // a second row inside the toolbar, only in the e
 function controlsHTML() {
   switch (state.tab) {
     case 'overview':
-      return '<span class="slim-cap"><span class="desk-only">Overview · click any card to explore</span><span class="mob-only">Overview</span></span>';
+      return '<span class="slim-cap">Overview</span>';
     case 'explorer':
       // the score to show, grouped the way the benchmark is built (Coding and Creativity have two and three parts), then the chart type
       return `<div class="scopes" role="group" aria-label="Score">${SCOPE_GROUPS.map(([cap, ks]) => `<div class="sg${cap ? ' cap' : ''}">${cap ? `<span class="sgc">${cap}</span>` : ''}<div class="sgb">${ks.map((k) =>
@@ -1906,6 +1962,7 @@ $('#modelList').addEventListener('mouseover', (e) => {
 });
 $('#modelList').addEventListener('mouseleave', () => { state.spot = null; applySpot(); });
 $('#q').addEventListener('input', renderSidebar);
+$('#gq').addEventListener('input', (e) => { state.q = e.target.value; e.target.closest('.gsearch').classList.toggle('has-q', !!state.q); render(); });
 $('#labPills').addEventListener('click', (e) => {
   const b = e.target.closest('[data-lab]'); if (!b) return;
   state.labFilter = b.dataset.lab;
@@ -1956,6 +2013,7 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { setMenu(false); setVerMenu(false); return; }
+  if (e.key === '/' && e.target.tagName !== 'INPUT' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); $('#gq').focus(); return; }
   if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
   const i = '123456789'.indexOf(e.key);   // 1-6 tabs, 7-9 the first three extra views (the rest via ☰)
   if (i >= 0) { state.tab = i < TABS_KEYS.length ? TABS_KEYS[i] : EXTRA_KEYS[i - TABS_KEYS.length]; render(); }
