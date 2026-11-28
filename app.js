@@ -110,6 +110,11 @@ const RE_PART_COLOR = { re_blind: '#2a78d6', re_blind_hard: '#eb6834', re_assist
 const LEGACY_FILL = '#c3cad8';     // an older v1.5.1 RE score: its parts are unknown, so one neutral block
 const C = { ink: '#1b2434', soft: '#5a6478', faint: '#98a1b5', track: '#e6ebf5', azure: '#2b6cee', gold: '#c89600', zebra: '#f5f7fb' };
 const NONE = new Set();
+/* Dark theme (header switch): page colours live in style.css; here only what the JS writes inline. */
+const isDark = () => document.documentElement.dataset.theme === 'dark';
+const lum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 1; const n = parseInt(m[1], 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const themedTint = (t) => (isDark() && lum(t) < 0.05 ? '#d2d2d2' : t);   // a near-black lab colour would vanish on the dark gray
+const heatBg = (t) => (isDark() ? `hsl(220 50% ${(24 + t * 34).toFixed(0)}%)` : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const standardTag = () => (META.standard ? ` · ${esc(META.standard).toUpperCase()}` : '');
@@ -139,6 +144,8 @@ function deriveFields() {
   const wt = (k) => (k === 're' ? rw : 1);
   const wsum = ks.reduce((a, k) => a + wt(k), 0);
   DATA.forEach((d) => {
+    if (d.tint0 == null) d.tint0 = d.tint;
+    d.tint = themedTint(d.tint0);
     d.complete = ks.every((k) => d[k] != null);
     d.avg = d.complete ? Math.round((ks.reduce((a, k) => a + wt(k) * d[k], 0) / wsum) * 100) / 100 : null;
     d.free = d.price === 0;
@@ -1182,7 +1189,7 @@ function glanceInner(sort, hidden) {
   const shade = (k, v) => {
     if (v == null) return 'class="na"';
     const [a, b] = range[k], t = (v - a) / (b - a || 1);
-    return `style="background:hsl(220 78% ${(96 - t * 52).toFixed(0)}%);color:${t > 0.55 ? '#fff' : 'var(--ink)'}"`;
+    return `style="background:${heatBg(t)};color:${t > 0.55 || isDark() ? '#fff' : 'var(--ink)'}"`;
   };
   const head = `<tr>${sortHead('gsort', 'model', 'Model', sort, 'm')}${GLANCE_COLS.map(([k, l]) => sortHead('gsort', k, l, sort)).join('')}</tr>`;
   const body = rows.map((d) => `<tr data-m="${esc(d.id)}"><td class="m">${nameCell(d)}</td>${GLANCE_COLS.map(([k]) =>
@@ -1527,7 +1534,7 @@ function tilesHTML(hidden) {
   add('profiles', 'Profiles', `${pks.length === 6 ? 'Six' : 'Seven'} scores as one shape per model`, best ? `<svg class="msc" viewBox="0 0 240 92">${[best].map((d) => { const pts = pks.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / pks.length, r = ((d[k] ?? 0) / 100) * 42; return `${(120 + Math.cos(a) * r).toFixed(1)},${(46 + Math.sin(a) * r).toFixed(1)}`; }); return `<polygon points="${pks.map((k, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / pks.length; return `${(120 + Math.cos(a) * 42).toFixed(1)},${(46 + Math.sin(a) * 42).toFixed(1)}`; }).join(' ')}" fill="none" stroke="${C.track}" stroke-width="1.5"/><polygon points="${pts.join(' ')}" fill="${d.tint}" fill-opacity=".2" stroke="${d.tint}" stroke-width="2"/>`; }).join('')}</svg><p class="tnote">${esc(modelEffort(best))}</p>` : '');
   add('ledger', 'Ledger', 'Every column for every entry, sortable', `<p class="tbig">${vis.length}<small> entries</small></p><p class="tnote">price, speed, context, all scores</p>`);
   const hm = ranked('avg').slice(0, 5), range = Object.fromEntries(GLANCE_COLS.map(([k]) => { const v = DATA.map((d) => d[k]).filter((x) => x != null); return [k, v.length ? [Math.min(...v), Math.max(...v)] : [0, 1]]; }));
-  add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? C.ink : `hsl(220 78% ${(96 - t * 52).toFixed(0)}%)`}"></i>`; }).join('')).join('')}</div>`);
+  add('glance', 'Every score at a glance', 'Sortable heatmap of all scores', `<div class="mhm">${hm.map((d) => GLANCE_COLS.map(([k]) => { const [a, b] = range[k], t = d[k] == null ? 0 : (d[k] - a) / (b - a || 1); return `<i style="background:${k === 'avg' ? 'var(--ink)' : heatBg(t)}"></i>`; }).join('')).join('')}</div>`);
   const tb = (d) => valOfPart(d, 're_blind'), ta = (d) => valOfPart(d, 're_assisted');   // as in the view: outdated v1.5.1 runs count too
   const ra = vis.filter((d) => tb(d) != null && ta(d) != null).sort((a, b) => (ta(b) - tb(b)) - (ta(a) - tb(a))).slice(0, 3 + TILE_EXTRA);
   add('rehelp', 'Blind vs assisted RE', 'How much rated examples help', `<ol class="mini">${ra.map((d, i) => `<li${exAttr(i, 3)}><span class="mn">${iconHTML(d)}<b>${esc(modelEffort(d))}</b></span><span class="db"><i style="left:${tb(d)}%;width:${Math.max(1, ta(d) - tb(d))}%;background:${d.tint}"></i></span><em>+${(ta(d) - tb(d)).toFixed(2)}</em></li>`).join('')}</ol>`);
@@ -1918,7 +1925,8 @@ const TAB_ICON = {
   ledger: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13"/></svg>',
   method: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h5a2 2 0 0 1 2 2v9.5a1.5 1.5 0 0 0-1.5-1.5h-5.5zM16.5 4.5h-5a2 2 0 0 0-2 2v9.5a1.5 1.5 0 0 1 1.5-1.5h5.5z"/></svg>',
 };
-$('#tabs').innerHTML = TABS.map(([k, l], i) => `<button type="button" data-tab="${k}"><span class="tab-ico" aria-hidden="true">${TAB_ICON[k] || ''}</span><span class="tab-lbl">${l}</span><kbd>${i + 1}</kbd></button>`).join('');
+const HEADER_TABS = ['overview', 'explorer', 'profiles', 'ledger'];   // Speed and Method are in the ☰ menu (keys 4 and 6 still work)
+$('#tabs').innerHTML = TABS.map(([k, l], i) => (!HEADER_TABS.includes(k) ? '' : `<button type="button" data-tab="${k}"><span class="tab-ico" aria-hidden="true">${TAB_ICON[k] || ''}</span><span class="tab-lbl">${l}</span><kbd>${i + 1}</kbd></button>`)).join('');
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   state.tab = b.dataset.tab; render();
@@ -1979,6 +1987,13 @@ $('#modelList').addEventListener('mouseover', (e) => {
 });
 $('#modelList').addEventListener('mouseleave', () => { state.spot = null; applySpot(); });
 $('#q').addEventListener('input', renderSidebar);
+$('#themeBtn').addEventListener('click', () => {
+  const next = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('gfTheme', next); } catch (err) { /* private mode */ }
+  DATA.forEach((d) => { d.tint = themedTint(d.tint0 ?? d.tint); });
+  render();
+});
 $('#gq').addEventListener('input', (e) => { state.q = e.target.value; e.target.closest('.gsearch').classList.toggle('has-q', !!state.q); render(); });
 $('#labPills').addEventListener('click', (e) => {
   const b = e.target.closest('[data-lab]'); if (!b) return;

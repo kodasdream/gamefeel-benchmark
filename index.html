@@ -9,6 +9,7 @@
 <link rel="icon" type="image/png" sizes="256x256" href="favicon.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
 <link rel="stylesheet" href="style.css" />
+<script>try { var t = localStorage.getItem('gfTheme'); document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) { document.documentElement.dataset.theme = 'light'; }</script>
 </head>
 <body>
 <div id="app">
@@ -27,6 +28,7 @@
       <div class="ver-menu" id="verMenu" role="listbox" aria-label="Benchmark version" hidden></div>
     </div>
     <div class="meta" id="meta"></div>
+    <button id="themeBtn" type="button" title="Switch between light and dark" aria-label="Switch between light and dark"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 1.8v2.1M10 16.1v2.1M1.8 10h2.1M16.1 10h2.1M4.2 4.2l1.5 1.5M14.3 14.3l1.5 1.5M4.2 15.8l1.5-1.5M14.3 5.7l1.5-1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
   </header>
   <aside class="side">
     <div class="side-head"><b>Models</b><span id="shown"></span></div>

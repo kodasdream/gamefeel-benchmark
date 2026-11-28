@@ -644,3 +644,80 @@ ol.mini li.ex { display: none; }
 }
 @media (max-width: 1340px) and (min-width: 701px) { .gsearch { flex-basis: auto; width: 42px; padding: 10px 13px; } }
 @media (max-width: 1180px) and (min-width: 701px) { .ver-btn { padding: 10px 10px; } .csv-btn { padding: 10px 11px; } .tabs button { padding: 0 8px; } }
+
+/* ---------- theme switch button ---------- */
+#themeBtn { flex-shrink: 0; width: 42px; height: 42px; display: inline-grid; place-items: center; border: 1px solid var(--line); background: #fff; border-radius: 12px; color: var(--ink-soft); cursor: pointer; transition: background .12s, color .12s; }
+#themeBtn:hover { background: var(--track); color: var(--ink); }
+#themeBtn svg { width: 18px; height: 18px; display: block; }
+#themeBtn .i-sun { display: none; }
+html[data-theme="dark"] #themeBtn .i-sun { display: block; }
+html[data-theme="dark"] #themeBtn .i-moon { display: none; }
+/* the Models button: wider, the same height as the other header controls */
+@media (min-width: 701px) { #sideToggle { padding: 10px 18px; min-width: 112px; justify-content: center; border-radius: 12px; font-size: 13.5px; } }
+@media (max-width: 700px) { #themeBtn { width: 34px; height: 34px; border-radius: 10px; } }
+
+/* ================= dark theme: matte neutral grays (no blue cast) =================
+   Charts keep their data colours; their fixed light palette (C in app.js) is swapped through attribute selectors. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1a1a1a; --bg2: #202020; --card: #252525; --ink: #ececec; --ink-soft: #b3b3b3; --ink-faint: #858585;
+  --line: rgba(255,255,255,.09); --track: #333333; --zebra: #2c2c2c; --azure: #6f9cff; --gold: #e0b43a;
+  --good: #3fbf78; --good-ink: #5fd393; --good-bg: rgba(63,191,120,.16); --bad: #ef6b6b; --bad-ink: #ff8a8a; --bad-bg: rgba(239,107,107,.16);
+  --shadow: none;
+}
+html[data-theme="dark"] body { background: #1a1a1a; }
+html[data-theme="dark"] * { scrollbar-color: #4a4a4a transparent; }
+html[data-theme="dark"] *::-webkit-scrollbar-thumb, html[data-theme="dark"] *::-webkit-scrollbar-thumb:hover { background: #4a4a4a; border: 2px solid transparent; background-clip: content-box; }
+html[data-theme="dark"] header.top { background: #212121; border-bottom-color: #2e2e2e; }
+html[data-theme="dark"] aside.side { background: #1e1e1e; }
+/* surfaces that were plain white */
+html[data-theme="dark"] :is(#themeBtn, #sideToggle, #sideToggle[aria-pressed="false"], #menuBtn, .side-tools input, .chip, .seg, .ver-btn, .ver-menu, .menu, .csv-btn, .lab-pills button, table.plist .vbtn, .gsearch kbd, .controls.tb, table.hm th) { background: #262626; }
+html[data-theme="dark"] :is(.seg button.on, .modes button.on, .subtabs button.on, .sortbar .seg button.on, .controls.tb .modes button.on) { background: #3a3a3a; color: var(--ink); box-shadow: none; }
+html[data-theme="dark"] .tabs button.on { background: none; color: var(--ink); box-shadow: inset 0 -2.5px 0 var(--ink); }
+html[data-theme="dark"] .gsearch { background: #262626; }
+html[data-theme="dark"] .gsearch:focus-within { background: #2a2a2a; }
+/* light-blue hovers and tags become neutral */
+html[data-theme="dark"] :is(.mrow:hover, .menu button:hover, .ver-opt:hover, table.plist .vbtn:hover, .csv-btn:hover, .side-tools button:hover, .gsearch.has-q) { background: #303030; }
+html[data-theme="dark"] :is(.menu button.on, .ver-opt.on) { background: #333; }
+html[data-theme="dark"] body.is-history .ver-btn { background: #2c2c2c; }
+html[data-theme="dark"] .ver-banner { background: #262626; border-color: #3a3a3a; }
+html[data-theme="dark"] :is(.ver-opt .vo-tag, .ptag.best) { background: rgba(111,156,255,.16); }
+html[data-theme="dark"] .ptag.open { background: rgba(63,191,120,.16); }
+html[data-theme="dark"] ol.rank li.href-row { background: #2a2a2a; }
+/* borders */
+html[data-theme="dark"] :is(.card, .tile, .ov-pod, .ov-card, .method-img, .ver-menu) { border-color: #313131; box-shadow: none; }
+html[data-theme="dark"] :is(.tile:hover, .ov-pod:hover) { border-color: #444; box-shadow: none; }
+html[data-theme="dark"] :is(.ov-foot) { border-top-color: #333; }
+html[data-theme="dark"] .ov-cost { border-left-color: #3a3a3a; }
+html[data-theme="dark"] .ov-mtr i { background: #3a3a3a; }
+html[data-theme="dark"] .ov-mtr i.f { background: var(--c); }
+html[data-theme="dark"] .menu { box-shadow: 0 12px 40px rgba(0,0,0,.5); border: 1px solid #333; }
+html[data-theme="dark"] .ver-menu { box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+/* dark fills with white text: invert to light fills with dark text */
+html[data-theme="dark"] :is(.seg-open button.on, .scopes button.on, .lab-pills button.on, table.hm td.ov, #menuBtn[aria-expanded="true"]) { background: #e6e6e6; color: #1a1a1a; border-color: #e6e6e6; }
+html[data-theme="dark"] .controls .seg button.on { background: #e6e6e6; color: #1a1a1a; }
+html[data-theme="dark"] #menuBtn[aria-expanded="true"] .burger i { background: #1a1a1a; }
+html[data-theme="dark"] .tip { background: #333; color: #f0f0f0; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+html[data-theme="dark"] .oswitch .knob { background: #444; }
+html[data-theme="dark"] table.hm td.na { color: #5e5e5e; }
+html[data-theme="dark"] .hsvg .tiny { stroke: var(--card); }
+html[data-theme="dark"] .method-img { filter: brightness(.92); }
+@media (max-width: 700px) {
+  html[data-theme="dark"] .tabs { background: #212121; border-top-color: #2e2e2e; }
+  html[data-theme="dark"] .tabs button.on { background: #333; color: var(--ink); }
+}
+/* SVG charts on screen: the fixed light palette of app.js (C.ink, C.soft, C.faint, C.track, C.zebra, white) */
+html[data-theme="dark"] #stage svg [fill="#ffffff"], html[data-theme="dark"] #stage svg [fill="#fff"] { fill: var(--card); }
+html[data-theme="dark"] #stage svg [stroke="#ffffff"], html[data-theme="dark"] #stage svg [stroke="#fff"] { stroke: var(--card); }
+html[data-theme="dark"] #stage svg [fill="#1b2434"] { fill: #ececec; }
+html[data-theme="dark"] #stage svg [stroke="#1b2434"] { stroke: #d6d6d6; }
+html[data-theme="dark"] #stage svg [fill="#5a6478"] { fill: #b3b3b3; }
+html[data-theme="dark"] #stage svg [fill="#98a1b5"] { fill: #8a8a8a; }
+html[data-theme="dark"] #stage svg [stroke="#98a1b5"] { stroke: #6a6a6a; }
+html[data-theme="dark"] #stage svg [fill="#e6ebf5"] { fill: #333333; }
+html[data-theme="dark"] #stage svg [stroke="#e6ebf5"] { stroke: #363636; }
+html[data-theme="dark"] #stage svg [fill="#f5f7fb"] { fill: #2a2a2a; }
+html[data-theme="dark"] #stage svg [stroke="#2b6cee"] { stroke: #6f9cff; }
+html[data-theme="dark"] .controls.tb.is-slim { background: transparent; }
+.menu { top: 78px; }
+@media (max-width: 700px) { .menu { top: 62px; } }
